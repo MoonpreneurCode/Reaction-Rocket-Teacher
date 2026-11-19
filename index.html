@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Class View</title>
+<style>
+  :root {
+    --night: #0e1430; --paper: #f5f7fc; --card: #fff; --ink: #141a33; --muted: #5b6488; --line: #dde2f0;
+    --space: #0fa494; --space-t: #ddf5f2; --click: #6d4aff; --click-t: #ece8ff;
+    --amber: #ffb020; --amber-t: #fff1d6; --coral: #ff5a5f; --coral-t: #ffe6e7;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--night); color: #fff; padding: 12px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 22px; }
+  header .dots { display: flex; gap: 6px; } header .dots i { width: 10px; height: 10px; border-radius: 50%; display: block; }
+  .ctl { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .ctl input { font: inherit; padding: 7px 10px; border-radius: 10px; border: 0; width: 130px; text-transform: uppercase; }
+  .ctl button { font: inherit; font-weight: 700; padding: 7px 14px; border-radius: 10px; border: 0; background: var(--amber); color: var(--night); cursor: pointer; }
+  #meta { color: #a9b0d6; font-size: 13px; }
+  main { padding: 18px 24px 40px; max-width: 1500px; margin: 0 auto; }
+  .big { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 18px; min-width: 160px; }
+  .stat b { display: block; font-size: 30px; line-height: 1.1; } .stat span { color: var(--muted); font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+  .card h2 { margin: 0 0 2px; font-size: 17px; }
+  .card .q { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+  .card .ans { font-size: 16px; font-weight: 700; margin: 6px 0 0; }
+  svg { width: 100%; height: auto; display: block; }
+  .empty { color: var(--muted); text-align: center; padding: 70px 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; color: var(--muted); font-size: 12px; padding: 5px 6px; border-bottom: 1px solid var(--line); }
+  td { padding: 5px 6px; border-bottom: 1px solid #eef1f8; font-variant-numeric: tabular-nums; }
+  .pill { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .pill.Space { background: var(--space-t); color: var(--space); } .pill.Click { background: var(--click-t); color: var(--click); }
+  .pill.Same { background: #eef1f8; color: var(--muted); }
+  .podium { display: grid; gap: 8px; }
+  .podium div { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; background: var(--amber-t); font-size: 16px; }
+  .podium div b { margin-left: auto; font-variant-numeric: tabular-nums; }
+  .wide { grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+<header>
+  <div class="dots"><i style="background:#12b3a2"></i><i style="background:#6d4aff"></i><i style="background:#ffb020"></i></div>
+  <h1>Class View: Reaction Rocket</h1>
+  <span id="meta"></span>
+  <div class="ctl"><input id="batch" placeholder="Class code"><button id="load">Show</button></div>
+</header>
+<main>
+  <div class="big" id="big"></div>
+  <div class="grid" id="grid"><div class="card wide empty">Type your class code and press <b>Show</b>. The page refreshes every 10 seconds as students send their data.</div></div>
+</main>
+
+<script>
+/* The same Apps Script web app URL as in the Graph Maker (ends in /exec). */
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwCdCEmp1_iGWKs8zqLhtawtpQaFXB9BKQHJREdd8jAq17u75QF82PfXEPZK4LKAWXk/exec";
+const HUMAN = 250;   // a typical human reaction time to a light, in ms (roughly)
+
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const C = { Space: "#0fa494", Click: "#6d4aff", amber: "#ffb020", coral: "#ff5a5f", muted: "#5b6488", grid: "#e8ecf5" };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN;
+const r0 = Math.round;
+$("batch").value = params.get("class") || params.get("batch") || "";
+
+/* ---------- fake class for practice: class.html?demo=1 ---------- */
+function demoData() {
+  const names = ["NovaFox", "Pixel", "Blaze", "Comet", "Zippy", "Orbit", "Turbo", "Echo", "Rocket", "Luna", "Bolt", "Astro", "Spark", "Jet", "Mango", "Ninja"];
+  return names.map((nick, k) => {
+    const base = 240 + Math.random() * 120, clickPen = (Math.random() - .3) * 60;
+    const order = []; for (let i = 0; i < 10; i++) order.push(i < 5 ? "Space" : "Click");
+    order.sort(() => Math.random() - .5);
+    const rounds = order.map((used, i) => {
+      let ms = base + (used === "Click" ? clickPen : 0) + Math.max(0, 80 - i * 14) + (Math.random() - .5) * 50 + (i >= 8 ? 15 : 0);
+      if (Math.random() < .06) ms += 300;
+      return { round: i + 1, used, ms: r0(ms) };
+    });
+    return { nick, guess: ["Space", "Click", "Same"][k % 3], rounds };
+  });
+}
+
+/* ---------- per-student numbers ---------- */
+function summarise(st) {
+  const t = u => st.rounds.filter(r => r.used === u).map(r => r.ms);
+  const aS = mean(t("Space")), aC = mean(t("Click")), all = st.rounds.map(r => r.ms);
+  const faster = Math.abs(aS - aC) < 10 ? "Same" : aS < aC ? "Space" : "Click";
+  return { ...st, aS, aC, avg: mean(all), best: Math.min(...all), range: Math.max(...all) - Math.min(...all), faster };
+}
+
+/* ---------- SVG helpers ---------- */
+function niceMax(v) { for (const s of [50, 100, 200, 250, 500]) { const m = Math.ceil(v * 1.12 / s) * s; if (m / s <= 8) return m; } return Math.ceil(v / 1000) * 1000; }
+function axes(W, H, P, min, max, label) {
+  let s = ""; const d = [4, 5, 6].find(k => ((max - min) / k) % 25 === 0) || 5, step = (max - min) / d;
+  for (let i = 0; i <= d; i++) {
+    const v = r0(min + step * i), y = H - P.b - (H - P.t - P.b) * ((v - min) / (max - min));
+    s += `<line x1="${P.l}" x2="${W - P.r}" y1="${y}" y2="${y}" stroke="${C.grid}"/><text x="${P.l - 8}" y="${y + 4}" text-anchor="end" font-size="12" fill="${C.muted}">${v}</text>`;
+  }
+  if (label) s += `<text transform="translate(14 ${(H - P.b + P.t) / 2}) rotate(-90)" text-anchor="middle" font-size="12" fill="${C.muted}">${label}</text>`;
+  return s;
+}
+
+/* 6 · practice: class average by round number */
+function chartRounds(S) {
+  const n = Math.max(...S.map(s => s.rounds.length));
+  const avg = []; for (let i = 1; i <= n; i++) avg.push(mean(S.flatMap(s => s.rounds.filter(r => r.round === i).map(r => r.ms))));
+  const W = 700, H = 320, P = { l: 56, r: 20, t: 20, b: 46 };
+  const lo = Math.max(0, Math.floor((Math.min(...avg) - 60) / 50) * 50), hi = niceMax(Math.max(...avg));
+  const x = i => P.l + (W - P.l - P.r) * (i / (n - 1)), y = v => H - P.b - (H - P.t - P.b) * ((v - lo) / (hi - lo));
+  let s = `<svg viewBox="0 0 ${W} ${H}">` + axes(W, H, P, lo, hi, "Class average (ms)");
+  avg.forEach((v, i) => { s += `<text x="${x(i)}" y="${H - P.b + 18}" text-anchor="middle" font-size="12" fill="${C.muted}">${i + 1}</text>`; });
+  s += `<text x="${(W + P.l) / 2}" y="${H - 6}" text-anchor="middle" font-size="12" fill="${C.muted}">Round</text>`;
+  s += `<polyline points="${avg.map((v, i) => x(i) + "," + y(v)).join(" ")}" fill="none" stroke="${C.amber}" stroke-width="4"/>`;
+  const iMin = avg.indexOf(Math.min(...avg));
+  avg.forEach((v, i) => {
+    const key = i === 0 || i === iMin || i === n - 1;
+    s += `<circle cx="${x(i)}" cy="${y(v)}" r="${key ? 7 : 5}" fill="${i === 0 ? C.coral : i === iMin ? C.Space : C.amber}"/>`;
+    if (key) s += `<text x="${x(i)}" y="${y(v) - 12}" text-anchor="middle" font-size="13" font-weight="700">${r0(v)}</text>`;
+  });
+  s += "</svg>";
+  const first = avg[0], laterAvg = mean(avg.slice(1));
+  const end = avg[n - 1] - avg[iMin] > 15 && iMin < n - 1 ? ` After round ${iMin + 1} it creeps back up: tired or bored?` : "";
+  const ans = first > laterAvg + 10 ? `Round 1 was slower (${r0(first)} ms) than the rounds after it (${r0(laterAvg)} ms on average). Practice made us faster!${end}`
+            : `Round 1 (${r0(first)} ms) was about the same as the rest (${r0(laterAvg)} ms).${end}`;
+  return { svg: s, ans };
+}
+
+/* 7 · class Space vs Click */
+function chartSpaceClick(S) {
+  const aS = mean(S.flatMap(s => s.rounds.filter(r => r.used === "Space").map(r => r.ms)));
+  const aC = mean(S.flatMap(s => s.rounds.filter(r => r.used === "Click").map(r => r.ms)));
+  const W = 700, H = 300, P = { l: 56, r: 20, t: 30, b: 40 }, hi = niceMax(Math.max(aS, aC));
+  const y = v => H - P.b - (H - P.t - P.b) * (v / hi);
+  let s = `<svg viewBox="0 0 ${W} ${H}">` + axes(W, H, P, 0, hi, "Class average (ms)");
+  [["Space", aS, .3], ["Click", aC, .7]].forEach(([u, v, f]) => {
+    const cx = P.l + (W - P.l - P.r) * f;
+    s += `<rect x="${cx - 80}" y="${y(v)}" width="160" height="${H - P.b - y(v)}" rx="6" fill="${C[u]}"/>`;
+    s += `<text x="${cx}" y="${y(v) - 8}" text-anchor="middle" font-size="18" font-weight="700">${r0(v)} ms</text>`;
+    s += `<text x="${cx}" y="${H - P.b + 22}" text-anchor="middle" font-size="15" font-weight="700" fill="${C[u]}">${u === "Space" ? "Space bar" : "Click"}</text>`;
+  });
+  s += "</svg>";
+  const nS = S.filter(s => s.faster === "Space").length, nC = S.filter(s => s.faster === "Click").length, nE = S.length - nS - nC;
+  const ans = `${nS} of ${S.length} students were faster with Space, ${nC} with Click${nE ? `, ${nE} about the same` : ""}. As a class: ${Math.abs(aS - aC) < 10 ? "about the same" : (aS < aC ? "Space" : "Click") + " is faster by " + r0(Math.abs(aS - aC)) + " ms"}.`;
+  return { svg: s, ans };
+}
+
+/* 8 · where most of us land (students' averages) */
+function chartSpread(S) {
+  const vals = S.map(s => s.avg), bin = 25;
+  const lo = Math.floor(Math.min(...vals) / bin) * bin, hi = Math.ceil((Math.max(...vals) + 1) / bin) * bin;
+  const bins = []; for (let b = lo; b < hi; b += bin) bins.push({ b, n: vals.filter(v => v >= b && v < b + bin).length });
+  const W = 700, H = 300, P = { l: 46, r: 20, t: 24, b: 50 }, top = Math.max(...bins.map(b => b.n));
+  const bw = (W - P.l - P.r) / bins.length, y = v => H - P.b - (H - P.t - P.b) * (v / Math.max(top, 1));
+  let s = `<svg viewBox="0 0 ${W} ${H}">`;
+  bins.forEach((b, i) => {
+    const x = P.l + bw * i;
+    s += `<rect x="${x + 3}" y="${y(b.n)}" width="${bw - 6}" height="${H - P.b - y(b.n)}" rx="4" fill="${b.n === top ? C.amber : "#c9cfe3"}"/>`;
+    if (b.n) s += `<text x="${x + bw / 2}" y="${y(b.n) - 6}" text-anchor="middle" font-size="13" font-weight="700">${b.n}</text>`;
+    s += `<text x="${x + bw / 2}" y="${H - P.b + 16}" text-anchor="middle" font-size="11" fill="${C.muted}">${b.b}-${b.b + bin}</text>`;
+  });
+  s += `<text x="${(W + P.l) / 2}" y="${H - 8}" text-anchor="middle" font-size="12" fill="${C.muted}">Student's average reaction time (ms)</text></svg>`;
+  const peak = bins.find(b => b.n === top);
+  return { svg: s, ans: `Most of us (${top} students) landed between ${peak.b} and ${peak.b + bin} ms.` };
+}
+
+/* 10 · us vs a typical human */
+function chartHuman(S) {
+  const cls = mean(S.map(s => s.avg)), W = 700, H = 170, P = { l: 120, r: 30, t: 20, b: 30 }, hi = niceMax(Math.max(cls, HUMAN));
+  const x = v => P.l + (W - P.l - P.r) * (v / hi);
+  let s = `<svg viewBox="0 0 ${W} ${H}">`;
+  [["Our class", cls, C.amber, 30], ["Typical human", HUMAN, "#9aa3c4", 90]].forEach(([l, v, c, yy]) => {
+    s += `<text x="${P.l - 10}" y="${yy + 24}" text-anchor="end" font-size="15" font-weight="700">${l}</text>`;
+    s += `<rect x="${P.l}" y="${yy}" width="${x(v) - P.l}" height="38" rx="6" fill="${c}"/>`;
+    s += `<text x="${x(v) + 8}" y="${yy + 25}" font-size="15" font-weight="700">${r0(v)} ms</text>`;
+  });
+  s += "</svg>";
+  const d = r0(cls - HUMAN);
+  return { svg: s, ans: Math.abs(d) < 15 ? "We're right at a typical human speed." : d < 0 ? `We're ${-d} ms faster than a typical human! 🚀` : `We're ${d} ms slower than a typical human. More practice?` };
+}
+
+/* ---------- render ---------- */
+function render(students, label) {
+  const S = students.filter(s => s.rounds && s.rounds.length >= 2 && s.rounds.some(r => r.used === "Space") && s.rounds.some(r => r.used === "Click")).map(summarise);
+  $("meta").textContent = label;
+  if (!S.length) { $("big").innerHTML = ""; $("grid").innerHTML = `<div class="card wide empty">No data yet for this batch. Waiting for students to press <b>Send</b>…</div>`; return; }
+
+  const right = S.filter(s => s.guess && s.guess === s.faster).length;
+  const fastest = [...S].sort((a, b) => a.avg - b.avg)[0];
+  $("big").innerHTML =
+    `<div class="stat"><b>${S.length}</b><span>students sent data</span></div>` +
+    `<div class="stat"><b>${S.length * 10 > 0 ? S.reduce((n, s) => n + s.rounds.length, 0) : 0}</b><span>rounds of data</span></div>` +
+    `<div class="stat"><b>${r0(mean(S.map(s => s.avg)))} ms</b><span>class average</span></div>` +
+    `<div class="stat"><b>${right} / ${S.length}</b><span>guessed right</span></div>` +
+    `<div class="stat"><b>${esc(fastest.nick)}</b><span>fastest average (${r0(fastest.avg)} ms)</span></div>`;
+
+  const a = chartSpaceClick(S), b = chartRounds(S), c = chartSpread(S), h = chartHuman(S);
+  const steady = [...S].sort((x, y) => x.range - y.range).slice(0, 3);
+  const quick = [...S].sort((x, y) => x.avg - y.avg).slice(0, 3);
+  const medal = ["🥇", "🥈", "🥉"];
+  const outl = S.flatMap(s => { const m = mean(s.rounds.map(r => r.ms)); return s.rounds.filter(r => r.ms > m * 1.5 && r.ms - m > 120).map(r => ({ nick: s.nick, ...r })); })
+                .sort((x, y) => y.ms - x.ms).slice(0, 5);
+
+  $("grid").innerHTML = `
+    <div class="card"><h2>Space bar or Click?</h2><p class="q">Which is faster for our class?</p>${a.svg}<p class="ans">${a.ans}</p></div>
+    <div class="card"><h2>Does practice make us faster?</h2><p class="q">Average time for each round number, round 1 to the last.</p>${b.svg}<p class="ans">${b.ans}</p></div>
+    <div class="card"><h2>Where most of us land</h2><p class="q">How many students had each average time.</p>${c.svg}<p class="ans">${c.ans}</p></div>
+    <div class="card"><h2>Awards</h2><p class="q">Steadiest = smallest gap between your fastest and slowest round.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div><b>Steadiest players</b><div class="podium" style="margin-top:6px">${steady.map((s, i) => `<div>${medal[i]} ${esc(s.nick)}<b>${r0(s.range)} ms gap</b></div>`).join("")}</div></div>
+        <div><b>Fastest averages</b><div class="podium" style="margin-top:6px">${quick.map((s, i) => `<div>${medal[i]} ${esc(s.nick)}<b>${r0(s.avg)} ms</b></div>`).join("")}</div></div>
+      </div></div>
+    <div class="card"><h2>Us vs a typical human</h2><p class="q">A typical human reacts to a light in roughly ${HUMAN} ms.</p>${h.svg}<p class="ans">${h.ans}</p></div>
+    <div class="card"><h2>Spot the outliers</h2><p class="q">Rounds much slower than that student's usual time. Blinked? Looked away?</p>
+      ${outl.length ? `<table><tr><th>Student</th><th>Round</th><th>Used</th><th>Time</th></tr>${outl.map(o => `<tr><td>${esc(o.nick)}</td><td>${o.round}</td><td><span class="pill ${o.used}">${o.used}</span></td><td><b>${o.ms} ms</b></td></tr>`).join("")}</table>`
+                    : `<p class="ans">No outliers. Everyone was steady!</p>`}</div>
+    <div class="card wide"><h2>Everyone's results</h2><p class="q">Was your guess right? Is your answer the same as the class answer?</p>
+      <table><tr><th>Student</th><th>Average Space</th><th>Average Click</th><th>Faster with</th><th>Guessed</th><th>Best</th><th>Gap (steadiness)</th></tr>
+      ${[...S].sort((x, y) => x.avg - y.avg).map(s => `<tr><td><b>${esc(s.nick)}</b></td><td>${r0(s.aS)} ms</td><td>${r0(s.aC)} ms</td>
+        <td><span class="pill ${s.faster}">${s.faster === "Same" ? "Same" : s.faster}</span></td>
+        <td>${s.guess ? `<span class="pill ${s.guess}">${s.guess}</span> ${s.guess === s.faster ? "✓" : ""}` : "–"}</td>
+        <td>${s.best} ms</td><td>${r0(s.range)} ms</td></tr>`).join("")}</table></div>`;
+}
+
+/* ---------- loading ---------- */
+let timer = 0;
+async function load() {
+  const batch = $("batch").value.trim().toUpperCase();
+  clearTimeout(timer);
+  if (params.get("demo") === "1") { render(window.__demo || (window.__demo = demoData()), "Practice data (not real students)"); return; }
+  if (!batch) return;
+  if (!SCRIPT_URL) { $("grid").innerHTML = `<div class="card wide empty">The data link isn't set up yet (SCRIPT_URL is empty). Try <b>class.html?demo=1</b> to see practice data.</div>`; return; }
+  try {
+    const res = await fetch(SCRIPT_URL + "?batch=" + encodeURIComponent(batch));
+    const out = await res.json();
+    if (!out.ok) throw new Error(out.error || "error");
+    render(out.students, `Batch ${batch} · updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`);
+  } catch (e) {
+    $("meta").textContent = "Couldn't load data (" + e.message + "). Trying again…";
+  }
+  timer = setTimeout(load, 10000);
+}
+$("load").onclick = load;
+$("batch").addEventListener("keydown", e => { if (e.key === "Enter") load(); });
+if ($("batch").value || params.get("demo") === "1") load();
+</script>
+</body>
+</html>
