@@ -3,990 +3,311 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#0b1026">
-<title>Reaction Rocket</title>
+<title>Class View</title>
 <style>
   :root {
-    --sky: #0b1026; --sky2: #1a2150; --ink: #f4f6ff; --dim: #a9b0d6;
-    --wait: #e5484d; --go: #30c46b; --gold: #ffc53d; --decoy: #ff9f1c;
-    --space: #2dd4bf; --click: #a78bfa;
-    --card: rgba(255,255,255,0.08); --line: rgba(255,255,255,0.18);
-    --rocket: #e5484d;
+    --night: #0e1430; --paper: #f5f7fc; --card: #fff; --ink: #141a33; --muted: #5b6488; --line: #dde2f0;
+    --space: #0fa494; --space-t: #ddf5f2; --click: #6d4aff; --click-t: #ece8ff;
+    --amber: #ffb020; --amber-t: #fff1d6; --coral: #ff5a5f; --coral-t: #ffe6e7;
   }
   * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; }
-  body {
-    background: radial-gradient(ellipse at 40% 120%, var(--sky2), var(--sky) 70%);
-    color: var(--ink); font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    overflow: hidden; -webkit-user-select: none; user-select: none;
-    display: flex;
-  }
-  #stars { position: fixed; inset: 0; pointer-events: none; }
-
-  /* ---------- left: the game ---------- */
-  #stage { position: relative; flex: 1; min-width: 0; }
-  .screen { position: absolute; inset: 0; display: none; flex-direction: column;
-            align-items: center; justify-content: center; padding: 24px 16px; text-align: center; }
-  .screen.on { display: flex; }
-  h1 { font-size: clamp(36px, 6vw, 62px); margin: 0 0 4px; letter-spacing: 1px; }
-  h1 span { color: var(--gold); }
-  .sub { color: var(--dim); margin: 0 0 22px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px;
-          padding: 22px; width: 100%; max-width: 420px; }
-  label { display: block; text-align: left; font-weight: 600; margin: 0 0 6px; }
-  .hint { display: block; text-align: left; color: var(--dim); font-size: 13px; margin: 6px 0 18px; }
-  input[type=text] { width: 100%; font: inherit; font-size: 20px; padding: 12px 14px; border-radius: 12px;
-                     border: 2px solid var(--line); background: rgba(0,0,0,0.25); color: var(--ink);
-                     -webkit-user-select: text; user-select: text; }
-  input[type=text]:focus { outline: none; border-color: var(--gold); }
-  .btn { font: inherit; font-size: 20px; font-weight: 700; width: 100%; padding: 14px; border: 0;
-         border-radius: 14px; background: var(--gold); color: #1b1300; cursor: pointer; text-decoration: none; display: block; }
-  .btn:disabled { opacity: 0.45; cursor: default; }
-  .btn.ghost { background: transparent; color: var(--ink); border: 2px solid var(--line); margin-top: 10px; font-size: 17px; }
-  .rules { text-align: left; color: var(--dim); font-size: 14px; margin: 16px 0 0; padding-left: 18px; }
-  .rules b { color: var(--ink); }
-  .k-space { color: var(--space); font-weight: 700; }
-  .k-click { color: var(--click); font-weight: 700; }
-  .tag { position: absolute; top: 12px; left: 12px; font-size: 13px; color: var(--dim); z-index: 5; }
-  .tag b { color: var(--decoy); }
-
-  #play { padding: 0; }
-  #pad { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
-         justify-content: center; transition: background-color 0.08s; cursor: pointer; }
-  #pad.wait  { background: rgba(229,72,77,0.28); }
-  #pad.decoy { background: rgba(255,159,28,0.35); }
-  #pad.go    { background: rgba(48,196,107,0.55); }
-  #pad.early { background: rgba(255,197,61,0.22); }
-  #roundLabel { position: absolute; top: 14px; left: 0; right: 0; color: var(--dim); font-weight: 600; }
-  #useNow { margin-top: 8px; display: inline-flex; align-items: center; gap: 10px; padding: 8px 18px; border-radius: 999px;
-            font-size: clamp(18px, 2.6vw, 26px); font-weight: 800; border: 3px solid currentColor; }
-  #useNow.space { color: var(--space); background: rgba(45,212,191,0.12); }
-  #useNow.click { color: var(--click); background: rgba(167,139,250,0.14); }
-  #light { width: 70px; height: 70px; border-radius: 50%; margin-bottom: 14px; border: 4px solid rgba(0,0,0,0.3); background: #3a3f5c; }
-  .wait #light  { background: var(--wait);  box-shadow: 0 0 40px var(--wait); }
-  .decoy #light { background: var(--decoy); box-shadow: 0 0 40px var(--decoy); }
-  .go #light    { background: var(--go);    box-shadow: 0 0 60px var(--go); }
-  #rocket { width: 100px; height: 155px; transition: transform 0.9s cubic-bezier(.5,0,.9,.4); }
-  #rocket.launch { transform: translateY(-120vh); }
-  #rocket .paint { fill: var(--rocket); }
-  #flame { opacity: 0; transform-origin: 50% 0; }
-  .go #flame, #rocket.launch #flame { opacity: 1; animation: flick 0.08s infinite alternate; }
-  @keyframes flick { from { transform: scaleY(0.8); } to { transform: scaleY(1.25); } }
-  #bigText { font-size: clamp(28px, 4.6vw, 50px); font-weight: 800; margin-top: 14px; min-height: 1.3em; }
-  #smallText { color: var(--dim); margin-top: 6px; min-height: 1.4em; font-size: 17px; }
-  #time { position: absolute; bottom: 12%; left: 0; right: 0; font-size: clamp(44px, 8vw, 90px);
-          font-weight: 800; color: var(--gold); opacity: 0; transition: opacity 0.2s; }
-  #time.show { opacity: 1; }
-  #done h2 { font-size: clamp(30px, 4vw, 44px); margin: 0 0 8px; }
-  #done p { color: var(--dim); margin: 0 0 18px; max-width: 460px; }
-  #done .big { color: var(--ink); font-weight: 700; }
-
-  /* ---------- right: the data table ---------- */
-  #log { position: relative; width: 340px; flex: none; background: rgba(5,8,22,0.72); border-left: 1px solid var(--line);
-         display: flex; flex-direction: column; padding: 18px 18px 14px; z-index: 2; }
-  #log h3 { margin: 0; font-size: 18px; }
-  #log .who { color: var(--dim); font-size: 13px; margin: 2px 0 12px; min-height: 1.2em; }
-  table { width: 100%; border-collapse: collapse; font-size: 16px; }
-  th { text-align: left; color: var(--dim); font-weight: 600; font-size: 13px; padding: 4px 6px; border-bottom: 1px solid var(--line); }
-  td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,0.06); font-variant-numeric: tabular-nums; }
-  td:last-child, th:last-child { text-align: right; }
-  tr.empty td { color: rgba(255,255,255,0.22); }
-  tr.best td { background: rgba(255,197,61,0.16); }
-  tr.best td:last-child::after { content: " ★"; color: var(--gold); }
-  tr.now td { outline: 1px dashed rgba(255,255,255,0.35); outline-offset: -1px; }
-  .chip { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 13px; font-weight: 700; }
-  .chip.space { background: rgba(45,212,191,0.18); color: var(--space); }
-  .chip.click { background: rgba(167,139,250,0.2); color: var(--click); }
-  .avgs { margin-top: auto; padding-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .avg { background: var(--card); border-radius: 12px; padding: 8px 10px; }
-  .avg span { display: block; font-size: 12px; font-weight: 700; }
-  .avg b { font-size: 22px; font-variant-numeric: tabular-nums; }
-  .avg.space span { color: var(--space); } .avg.click span { color: var(--click); }
-  .note { color: var(--dim); font-size: 12px; margin-top: 10px; }
-
-  /* ---------- Tinker panel ---------- */
-  #gear { position: absolute; top: 10px; right: 12px; z-index: 20; display: none; font: 600 14px system-ui;
-          padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
-  #tinker { position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 100vw); z-index: 30;
-            background: #0d1117; border-left: 1px solid #30363d; padding: 18px 18px 24px; overflow: auto;
-            transform: translateX(100%); transition: transform 0.25s; text-align: left;
-            font: 15px/1.9 Consolas, "Courier New", monospace; color: #d4d4d4; cursor: default; }
-  #tinker.open { transform: none; }
-  #tinker h3 { font: 700 15px system-ui; color: #fff; margin: 0 0 4px; display: flex; justify-content: space-between; }
-  #tinker h3 button { background: none; border: 0; color: var(--dim); font-size: 20px; cursor: pointer; }
-  #tinker .c { color: #6a9955; } #tinker .k { color: #c586c0; } #tinker .n { color: #9cdcfe; }
-  #tinker input { font: inherit; color: #ce9178; background: #161b22; border: 1px solid #30363d;
-                  border-radius: 6px; padding: 0 6px; width: 7.5em; -webkit-user-select: text; user-select: text; }
-  #tinker input[type=number] { color: #b5cea8; width: 4.5em; }
-  #tinker input[type=color] { width: 3em; height: 1.6em; padding: 0; vertical-align: middle; }
-  #tinker input[type=checkbox] { width: auto; vertical-align: middle; }
-  #tinker .row { white-space: nowrap; }
-  #tinker .note2 { font: 13px/1.5 system-ui; color: var(--dim); margin-top: 14px; }
-
-
-  /* ---------- Graph Maker (opens inside the game, left side) ---------- */
-  #graph { padding: 0; align-items: stretch; justify-content: flex-start; text-align: left; z-index: 6;
-           background: #f5f7fc; color: #141a33; -webkit-user-select: text; user-select: text; }
-  #graph .gbar { flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 18px; background: #0e1430; color: #fff; }
-  #graph .gbar h2 { margin: 0; font-size: 19px; }
-  #graph .gbar span { color: #a9b0d6; font-size: 13px; }
-  #graph .gbar button { margin-left: auto; font: 700 14px system-ui; padding: 8px 14px; border-radius: 10px; border: 0;
-                        background: #ffc53d; color: #1b1300; cursor: pointer; }
-  #graph .gbody { flex: 1; overflow: auto; display: grid; grid-template-columns: minmax(300px, 360px) 1fr; gap: 16px; padding: 16px 18px 30px; align-content: start; }
-  @media (max-width: 1150px) { #graph .gbody { grid-template-columns: 1fr; } }
-  #graph .gcard { background: #fff; border: 1px solid #dde2f0; border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
-  #graph h3 { margin: 0 0 10px; font-size: 16px; display: flex; align-items: center; gap: 9px; color: #141a33; }
-  #graph h3 .n { width: 24px; height: 24px; border-radius: 50%; background: #0e1430; color: #fff; font-size: 13px;
-                 display: inline-flex; align-items: center; justify-content: center; flex: none; }
-  #graph label.lb { display: block; font-weight: 600; font-size: 13px; color: #5b6488; margin: 0 0 4px; }
-  #graph input[type=text], #graph input[type=number] { font: inherit; font-size: 15px; padding: 7px 10px; border: 1.5px solid #dde2f0;
-                 border-radius: 10px; width: 100%; background: #fff; color: #141a33; }
-  #graph input:focus { outline: none; border-color: #6d4aff; }
-  #graph .choice { display: flex; gap: 6px; flex-wrap: wrap; }
-  #graph .choice button { font: 600 14px system-ui; padding: 6px 12px; border-radius: 999px; border: 1.5px solid #dde2f0; background: #fff; color: #141a33; cursor: pointer; }
-  #graph .choice button.on { background: #0e1430; color: #fff; border-color: #0e1430; }
-  #graph table { font-size: 15px; }
-  #graph th { color: #5b6488; border-bottom: 1px solid #dde2f0; }
-  #graph td { border-bottom: 1px solid #eef1f8; padding: 3px 6px; }
-  #graph td:last-child, #graph th:last-child { text-align: left; }
-  #graph td.r { width: 40px; font-weight: 700; color: #5b6488; }
-  #graph td input[type=number] { width: 92px; padding: 5px 8px; }
-  #graph .used { display: inline-flex; border: 1.5px solid #dde2f0; border-radius: 999px; overflow: hidden; }
-  #graph .used button { font: 700 13px system-ui; border: 0; padding: 4px 10px; background: #fff; color: #5b6488; cursor: pointer; }
-  #graph .used button.on.space { background: #0fa494; color: #fff; }
-  #graph .used button.on.click { background: #6d4aff; color: #fff; }
-  #graph .warn { display: block; font-size: 12px; color: #b4232a; }
-  #graph .warn.note { color: #8a5a00; }
-  #graph .autofill { margin-left: auto; font: 700 13px system-ui; padding: 6px 12px; border-radius: 999px; border: 0;
-                     background: #ffb020; color: #1b1300; cursor: pointer; }
-  #graph .autofill:disabled { opacity: .45; cursor: default; }
-  #graph .gtip { font-size: 13px; color: #5b6488; margin: 8px 0 0; }
-  #graph .gstatus { margin-top: 10px; font-size: 13px; padding: 8px 10px; border-radius: 10px; background: #fff1d6; }
-  #graph .gstatus.ok { background: #ddf5f2; }
-  #graph .controls { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 10px; }
-  #graph .controls .title { flex: 1; min-width: 200px; }
-  #graph svg { width: 100%; height: auto; display: block; }
-  #graph .empty { color: #5b6488; text-align: center; padding: 50px 10px; border: 2px dashed #dde2f0; border-radius: 12px; }
-  #graph .teach { margin-top: 8px; padding: 9px 12px; border-radius: 10px; background: #fff1d6; font-size: 14px; display: none; }
-  #graph .finds { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
-  #graph .find { border: 1px solid #dde2f0; border-radius: 12px; padding: 10px 12px; background: #fff; }
-  #graph .find .q { font-size: 11px; font-weight: 700; letter-spacing: .3px; color: #5b6488; text-transform: uppercase; }
-  #graph .find .a { font-size: 16px; font-weight: 700; margin: 3px 0 2px; }
-  #graph .find .d { font-size: 13px; color: #5b6488; }
-  #graph .find.space { background: #ddf5f2; border-color: transparent; }
-  #graph .find.click { background: #ece8ff; border-color: transparent; }
-  #graph .find.amber { background: #fff1d6; border-color: transparent; }
-  #graph .find.coral { background: #ffe6e7; border-color: transparent; }
-  #graph .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; margin-top: 8px; cursor: pointer; }
-  #graph .sendrow { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
-  #graph .sendbtn { font: 700 16px system-ui; padding: 11px 20px; border: 0; border-radius: 12px; background: #0e1430; color: #fff; cursor: pointer; }
-  #graph .sendbtn:disabled { opacity: .4; cursor: default; }
-  #graph #gSendMsg { font-size: 14px; color: #5b6488; }
-
-  #graph .actcard { border: 2px solid #ffc53d; background: #fffaf0; }
-  #graph .chbtn { background: #ffc53d; color: #1b1300; }
-
-  /* ---------- Final Challenge ---------- */
-  .screen.scroll { overflow: auto; justify-content: safe center; }
-  .chcard { max-width: 520px; text-align: left; }
-  .chcard h4 { margin: 0 0 8px; font-size: 15px; color: var(--gold); letter-spacing: .3px; }
-  .vs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 8px; }
-  .vs > div { border-radius: 12px; padding: 8px 12px; background: var(--card); border: 2px solid transparent; position: relative; }
-  .vs span { display: block; font-size: 12px; font-weight: 700; }
-  .vs b { font-size: 24px; font-variant-numeric: tabular-nums; }
-  .vs .space span { color: var(--space); } .vs .click span { color: var(--click); }
-  .vs .win { border-color: var(--gold); }
-  .vs .win::after { content: "faster"; position: absolute; top: 8px; right: 10px; font-size: 11px; font-weight: 800; color: var(--gold); }
-  .says { font-size: 15px; margin: 0 0 16px; }
-  .pick { display: flex; gap: 8px; margin: 0 0 6px; }
-  .pick button { flex: 1; font: 700 16px system-ui; padding: 10px; border-radius: 12px; border: 2px solid var(--line);
-                 background: transparent; color: var(--ink); cursor: pointer; }
-  .pick button.on.space { background: var(--space); color: #062b27; border-color: var(--space); }
-  .pick button.on.click { background: var(--click); color: #1c1240; border-color: var(--click); }
-  .chnote { font-size: 13px; color: var(--dim); margin: 0 0 16px; min-height: 1.2em; }
-  .plan { list-style: none; padding: 0; margin: 0 0 16px; font-size: 14px; }
-  .plan li { margin-bottom: 5px; padding-left: 22px; text-indent: -22px; }
-  .plan li::before { content: "✓ "; color: var(--go); font-weight: 800; padding-right: 6px; }
-  .predict { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 16px; margin: 0 0 16px; }
-  .predict input { width: 110px; font: inherit; font-size: 18px; padding: 8px 10px; border-radius: 10px; border: 2px solid var(--line);
-                   background: rgba(0,0,0,0.25); color: var(--ink); -webkit-user-select: text; user-select: text; }
-  .predict input:focus { outline: none; border-color: var(--gold); }
-  #chDone h2 { font-size: clamp(28px, 3.6vw, 40px); margin: 0 0 14px; }
-  .chgrid { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; align-items: flex-start; width: 100%; }
-  .chgrid .card { flex: 1 1 340px; max-width: 460px; }
-  .ba { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-  .ba > div { flex: 1; border-radius: 14px; padding: 10px 12px; background: var(--card); }
-  .ba > div.arrow { flex: none; background: none; padding: 0; font-size: 26px; color: var(--dim); }
-  .ba span { display: block; font-size: 12px; font-weight: 800; letter-spacing: .5px; color: var(--dim); }
-  .ba b { display: block; font-size: 30px; font-variant-numeric: tabular-nums; }
-  .ba small { display: block; font-size: 12px; color: var(--dim); }
-  .ba .after { background: rgba(48,196,107,0.18); }
-  .ba .after span { color: var(--go); }
-  .delta { font-size: 18px; margin: 0 0 8px; }
-  .pred { font-size: 15px; margin: 0 0 8px; }
-  .badge { display: flex; gap: 14px; align-items: center; padding: 14px 16px; border-radius: 16px; margin-bottom: 16px;
-           background: linear-gradient(135deg, rgba(255,197,61,0.22), rgba(167,139,250,0.18)); border: 2px solid var(--gold); }
-  .badge .medal { font-size: 46px; line-height: 1; }
-  .badge small { display: block; font-size: 12px; font-weight: 800; letter-spacing: 1.5px; color: var(--gold); }
-  .badge b { display: block; font-size: 22px; }
-  .badge span { display: block; font-size: 13px; color: var(--dim); }
-  tr.warm td { color: var(--dim); font-style: italic; }
-  .avg.gold span { color: var(--gold); }
-
-  @media (max-width: 760px) { #log { display: none; } }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--night); color: #fff; padding: 12px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 22px; }
+  header .dots { display: flex; gap: 6px; } header .dots i { width: 10px; height: 10px; border-radius: 50%; display: block; }
+  .ctl { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .ctl input { font: inherit; padding: 7px 10px; border-radius: 10px; border: 0; width: 130px; text-transform: uppercase; }
+  .ctl button { font: inherit; font-weight: 700; padding: 7px 14px; border-radius: 10px; border: 0; background: var(--amber); color: var(--night); cursor: pointer; }
+  #meta { color: #a9b0d6; font-size: 13px; }
+  main { padding: 18px 24px 40px; max-width: 1500px; margin: 0 auto; }
+  .big { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 18px; min-width: 160px; }
+  .stat b { display: block; font-size: 30px; line-height: 1.1; } .stat span { color: var(--muted); font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+  .card h2 { margin: 0 0 2px; font-size: 17px; }
+  .card .q { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+  .card .ans { font-size: 16px; font-weight: 700; margin: 6px 0 0; }
+  svg { width: 100%; height: auto; display: block; }
+  .empty { color: var(--muted); text-align: center; padding: 70px 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; color: var(--muted); font-size: 12px; padding: 5px 6px; border-bottom: 1px solid var(--line); }
+  td { padding: 5px 6px; border-bottom: 1px solid #eef1f8; font-variant-numeric: tabular-nums; }
+  .pill { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .pill.Space { background: var(--space-t); color: var(--space); } .pill.Click { background: var(--click-t); color: var(--click); }
+  .pill.Same { background: #eef1f8; color: var(--muted); }
+  .podium { display: grid; gap: 8px; }
+  .podium div { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; background: var(--amber-t); font-size: 16px; }
+  .podium div b { margin-left: auto; font-variant-numeric: tabular-nums; }
+  .wide { grid-column: 1 / -1; }
+  .act { border: 2px solid var(--amber); background: #fffaf0; }
+  .act .cols { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; gap: 22px; align-items: start; }
+  @media (max-width: 900px) { .act .cols { grid-template-columns: 1fr; } }
+  .act .head { font-size: 40px; font-weight: 800; line-height: 1.05; margin: 8px 0 2px; }
+  .act .head small { font-size: 16px; font-weight: 600; color: var(--muted); display: block; margin-top: 4px; }
+  .act .mini { display: grid; gap: 8px; margin-top: 14px; }
+  .act .mini div { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; display: flex; align-items: baseline; gap: 8px; }
+  .act .mini b { margin-left: auto; font-size: 20px; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
-<canvas id="stars"></canvas>
-
-<main id="stage">
-  <div class="tag" id="tag"></div>
-  <button id="gear">⚙ Tinker</button>
-
-  <!-- 1. Start -->
-  <section class="screen on" id="start">
-    <h1>Reaction <span>Rocket</span></h1>
-    <p class="sub">Data Lab: are you faster with the Space bar or a click?</p>
-    <div class="card">
-      <label for="nick">Your nickname</label>
-      <input type="text" id="nick" maxlength="14" autocomplete="off" placeholder="e.g. NovaFox">
-      <span class="hint">A nickname, not your real name.</span>
-      <button class="btn" id="go" disabled>Start 10 rounds</button>
-      <ul class="rules">
-        <li>Each round tells you what to use: <span class="k-space">SPACE BAR</span> or <span class="k-click">CLICK</span>.</li>
-        <li>Wait for <b>green</b>, then react as fast as you can.</li>
-        <li>Too early or the wrong button? That round runs again.</li>
-        <li>Your times fill the table on the right. <b>You'll need them for the Graph Maker!</b></li>
-      </ul>
-    </div>
-  </section>
-
-  <!-- 2. Play -->
-  <section class="screen" id="play">
-    <div id="pad">
-      <div id="roundLabel"><div id="roundText">Round 1 of 10</div><div id="useNow" class="space">⌨ SPACE BAR</div></div>
-      <div id="light"></div>
-      <svg id="rocket" viewBox="0 0 110 170" aria-hidden="true">
-        <g id="flame">
-          <path d="M40 128 Q55 175 70 128 Z" fill="#ff8a3d"/>
-          <path d="M47 128 Q55 158 63 128 Z" fill="#ffe066"/>
-        </g>
-        <path d="M55 6 C82 30 86 72 78 122 L32 122 C24 72 28 30 55 6 Z" fill="#e9ecff"/>
-        <path class="paint" d="M55 6 C66 16 73 28 77 42 L33 42 C37 28 44 16 55 6 Z"/>
-        <circle cx="55" cy="68" r="13" fill="#4cc3ff" stroke="#1a2150" stroke-width="4"/>
-        <path class="paint" d="M32 92 L12 124 L32 118 Z"/>
-        <path class="paint" d="M78 92 L98 124 L78 118 Z"/>
-        <rect x="38" y="120" width="34" height="9" rx="3" fill="#5b6290"/>
-      </svg>
-      <div id="bigText"></div>
-      <div id="smallText"></div>
-      <div id="time"></div>
-    </div>
-  </section>
-
-  <!-- 3. Done -->
-  <section class="screen" id="done">
-    <h2>🚀 All rounds done!</h2>
-    <p>Your data is in the table on the right. <span class="big">Next: make your graph. You'll type in every round from your table.</span></p>
-    <div class="card">
-      <button class="btn" id="toGraph">📊 Make my graph</button>
-      <button class="btn ghost" id="again">Play a new set of rounds</button>
-    </div>
-  </section>
-
-  <!-- 4. Graph Maker -->
-  <section class="screen" id="graph">
-    <div class="gbar"><h2>📊 Graph Maker</h2><span>Copy your rounds from the table on the right →</span>
-      <button id="again2">↻ Play again</button></div>
-    <div class="gbody">
-      <div>
-        <div class="gcard">
-          <h3><span class="n">1</span>About you</h3>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-            <div><label class="lb" for="gNick">Nickname</label><input type="text" id="gNick" maxlength="14"></div>
-            <div><label class="lb" for="gBatch">Class code</label><input type="text" id="gBatch" maxlength="20" placeholder="from your teacher"></div>
-          </div>
-          <label class="lb">Before you played, what did you guess?</label>
-          <div class="choice" id="gGuess">
-            <button data-v="Space">Space bar is faster</button>
-            <button data-v="Click">Click is faster</button>
-            <button data-v="Same">About the same</button>
-          </div>
-        </div>
-        <div class="gcard">
-          <h3><span class="n">2</span>Your data <button id="gAuto" class="autofill" type="button">⚡ Autofill from my table</button></h3>
-          <table>
-            <thead><tr><th>Round</th><th>Used</th><th>Time (ms)</th></tr></thead>
-            <tbody id="gRows"></tbody>
-          </table>
-          <div class="gstatus" id="gStatus"></div>
-          <p class="gtip">Type each round from your table, or press <b>Autofill</b>. Times are in ms: 6 seconds = 6000.</p>
-        </div>
-      </div>
-      <div>
-        <div class="gcard">
-          <h3><span class="n">3</span>Make your graph</h3>
-          <div class="controls">
-            <div><label class="lb">Show</label><div class="choice" id="gView">
-              <button data-v="rounds">Every round</button>
-              <button data-v="avg">Space vs Click averages</button>
-            </div></div>
-            <div><label class="lb">Graph type</label><div class="choice" id="gType">
-              <button data-v="line">Line</button>
-              <button data-v="bar">Bar</button>
-            </div></div>
-            <div class="title"><label class="lb" for="gTitle">Give your graph a title</label><input type="text" id="gTitle" maxlength="60" placeholder="e.g. My reaction times"></div>
-          </div>
-          <div id="gChartBox"><div class="empty">Your graph appears here as you type your data.</div></div>
-          <div class="teach" id="gTeach"></div>
-          <label class="toggle"><input type="checkbox" id="gDrop"> Leave out outliers (very slow rounds)</label>
-        </div>
-        <div class="gcard">
-          <h3><span class="n">4</span>What your data says</h3>
-          <div class="finds" id="gFinds"><div class="empty" style="grid-column:1/-1">Fill in your table to see your findings.</div></div>
-        </div>
-        <div class="gcard">
-          <h3><span class="n">5</span>Send to your teacher</h3>
-          <div class="sendrow"><button class="sendbtn" id="gSend" disabled>Send my data</button><span id="gSendMsg"></span></div>
-        </div>
-        <div class="gcard actcard">
-          <h3><span class="n">6</span>Act: use your data</h3>
-          <p class="gtip" style="margin:0 0 12px">Data is only useful when you <b>do something</b> with it. Use what you found to beat your own average!</p>
-          <div class="sendrow"><button class="sendbtn chbtn" id="gChallenge" disabled>🏁 Final Challenge</button><span id="gChMsg"></span></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 5. Final Challenge: plan -->
-  <section class="screen scroll" id="chSetup">
-    <h1 style="font-size:clamp(30px,4.4vw,48px)">🏁 Final <span>Challenge</span></h1>
-    <p class="sub">Use your data to beat your own average.</p>
-    <div class="card chcard">
-      <h4>1 · WHAT YOUR DATA SAYS</h4>
-      <div class="vs">
-        <div class="space" id="cBoxSpace"><span>Average SPACE</span><b id="cSpace">–</b></div>
-        <div class="click" id="cBoxClick"><span>Average CLICK</span><b id="cClick">–</b></div>
-      </div>
-      <p class="says" id="cSays"></p>
-      <h4>2 · PICK YOUR BUTTON</h4>
-      <div class="pick" id="cPick">
-        <button class="space" data-v="Space">⌨ Space bar</button>
-        <button class="click" data-v="Click">🖱 Click</button>
-      </div>
-      <p class="chnote" id="cPickNote"></p>
-      <h4>3 · YOUR PLAN (FROM YOUR DATA)</h4>
-      <ul class="plan" id="cPlan"></ul>
-      <h4>4 · PREDICT</h4>
-      <p class="chnote" style="margin-bottom:8px">Before, your average over all 10 rounds was <b id="cBefore" style="color:var(--ink)">–</b> ms.</p>
-      <div class="predict"><label for="cPred" style="margin:0;font-weight:600">My challenge average will be under</label>
-        <input type="number" id="cPred" min="1" max="99999"> ms</div>
-      <button class="btn" id="cStart" disabled>Start the challenge</button>
-      <button class="btn ghost" id="cBack">📊 Back to my graph</button>
-    </div>
-  </section>
-
-  <!-- 6. Final Challenge: result -->
-  <section class="screen scroll" id="chDone">
-    <h2>🏁 Challenge complete!</h2>
-    <div class="chgrid">
-      <div class="card chcard">
-        <h4>DID YOUR DATA HELP?</h4>
-        <div class="ba">
-          <div><span>BEFORE</span><b id="rBefore">–</b><small>10 rounds, both buttons, no warm-up</small></div>
-          <div class="arrow">→</div>
-          <div class="after"><span>AFTER</span><b id="rAfter">–</b><small id="rAfterNote"></small></div>
-        </div>
-        <p class="delta" id="rDelta"></p>
-        <p class="pred" id="rPred"></p>
-        <p class="chnote" id="rFair" style="margin:0"></p>
-      </div>
-      <div class="card chcard">
-        <div class="badge"><div class="medal">🏅</div><div><small>DATA SCIENTIST</small><b id="bNick"></b><span id="bLine"></span></div></div>
-        <label for="chBatch">Class code</label>
-        <input type="text" id="chBatch" maxlength="20" autocomplete="off" placeholder="from your teacher">
-        <span class="hint">Your teacher shows everyone's before and after on the big screen.</span>
-        <button class="btn" id="chSend">Send my result</button>
-        <p class="chnote" id="chSendMsg" style="margin:8px 0 0"></p>
-        <button class="btn ghost" id="chBack">📊 Back to my graph</button>
-        <button class="btn ghost" id="chRetry">↻ Try the challenge again</button>
-      </div>
-    </div>
-  </section>
+<header>
+  <div class="dots"><i style="background:#12b3a2"></i><i style="background:#6d4aff"></i><i style="background:#ffb020"></i></div>
+  <h1>Class View: Reaction Rocket</h1>
+  <span id="meta"></span>
+  <div class="ctl"><input id="batch" placeholder="Class code"><button id="load">Show</button></div>
+</header>
+<main>
+  <div class="big" id="big"></div>
+  <div class="grid" id="grid"><div class="card wide empty">Type your class code and press <b>Show</b>. The page refreshes every 10 seconds as students send their data.</div></div>
 </main>
 
-<!-- right: data table -->
-<aside id="log">
-  <h3 id="logTitle">My data</h3>
-  <div class="who" id="who"></div>
-  <table>
-    <thead><tr><th>Round</th><th>Used</th><th>Time (ms)</th></tr></thead>
-    <tbody id="rows"></tbody>
-  </table>
-  <div class="avgs">
-    <div class="avg space" id="avgBoxA"><span id="avgLabA">Average SPACE</span><b id="avgSpace">–</b></div>
-    <div class="avg click" id="avgBoxB"><span id="avgLabB">Average CLICK</span><b id="avgClick">–</b></div>
-  </div>
-  <div class="note" id="logNote">★ = your fastest round. ms = milliseconds (1000 ms = 1 second).</div>
-</aside>
-
-<!-- Tinker panel -->
-<aside id="tinker" aria-label="Game settings">
-  <h3>Under the hood <button id="closeTinker" title="Close">✕</button></h3>
-  <div class="c">// These are the game's settings.</div>
-  <div class="c">// Change one, then play again!</div>
-  <div class="row"><span class="k">let</span> <span class="n">rounds</span> = <input type="number" min="2" max="20" step="2" data-set="rounds">;</div>
-  <div class="row"><span class="k">let</span> <span class="n">minWait</span> = <input type="number" min="0.5" max="10" step="0.5" data-set="minWait">; <span class="c">// seconds</span></div>
-  <div class="row"><span class="k">let</span> <span class="n">maxWait</span> = <input type="number" min="1" max="15" step="0.5" data-set="maxWait">; <span class="c">// seconds</span></div>
-  <div class="row"><span class="k">let</span> <span class="n">rocketColor</span> = <input type="color" data-set="rocketColor">;</div>
-  <div class="row"><span class="k">let</span> <span class="n">goText</span> = <input type="text" maxlength="14" data-set="goText">;</div>
-  <div class="row"><span class="k">let</span> <span class="n">earlyText</span> = <input type="text" maxlength="18" data-set="earlyText">;</div>
-  <div class="row"><span class="k">let</span> <span class="n">launchText</span> = <input type="text" maxlength="14" data-set="launchText">;</div>
-  <div class="row"><span class="k">let</span> <span class="n">trickFlashes</span> = <input type="checkbox" data-set="decoys">; <span class="c">// orange fakes</span></div>
-  <p class="note2">This is the same code the game runs. Changes start with your next set of rounds.</p>
-</aside>
-
 <script>
-/* =====================================================================
-   SETTINGS: change these and the game changes.
-   (Teachers: this is the block to show in "Peek under the hood".)
-   ===================================================================== */
-const SETTINGS = {
-  rounds: 10,             // total rounds: half SPACE BAR, half CLICK, in a mixed order
-  minWait: 1.5,           // shortest wait before green (seconds)
-  maxWait: 4.5,           // longest wait before green (seconds)
-  rocketColor: "#e5484d", // colour of the rocket's nose and fins
-  goText: "GO!",          // what the screen says when it turns green
-  earlyText: "Too early!",
-  launchText: "Lift-off!",
-  decoys: false,          // true = sometimes flash ORANGE to trick you
-  warmUps: 2,             // Final Challenge: practice rounds that don't count
-  challengeRounds: 5      // Final Challenge: rounds that count
-};
-
-/* Hard mode (open the game with ?mode=hard): longer waits and trick flashes. */
-const HARD = { minWait: 1, maxWait: 6, decoys: true, rocketColor: "#8b5cf6" };
-
-/* Address options:
-   ?class=B12  the batch code: tags the data sent from the Graph Maker
-   ?mode=hard  hard mode
-   ?tinker=1   shows the Tinker button (the settings panel)
-   The Graph Maker is built in (it opens on the left after the last round).
-   The teacher's Class View (class.html) sits next to this file. */
-/* ===================================================================== */
+/* The same Apps Script web app URL as in the Graph Maker (ends in /exec). */
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwCdCEmp1_iGWKs8zqLhtawtpQaFXB9BKQHJREdd8jAq17u75QF82PfXEPZK4LKAWXk/exec";
+const HUMAN = 250;   // a typical human reaction time to a light, in ms (roughly)
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
-const classCode = (params.get("class") || "").slice(0, 20);
-const hard = params.get("mode") === "hard";
-if (hard) Object.assign(SETTINGS, HARD);
-const ORIGINAL = JSON.stringify(SETTINGS);
-let tinkered = false;
+const C = { Space: "#0fa494", Click: "#6d4aff", amber: "#ffb020", coral: "#ff5a5f", muted: "#5b6488", grid: "#e8ecf5" };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN;
+const r0 = Math.round;
+$("batch").value = params.get("class") || params.get("batch") || "";
 
-const store = {
-  get(k, d) { try { const v = localStorage.getItem("rr_" + k); return v === null ? d : v; } catch (e) { return d; } },
-  set(k, v) { try { localStorage.setItem("rr_" + k, v); } catch (e) {} }
-};
-function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
-
-function refreshTag() {
-  const bits = [];
-  if (classCode) bits.push("Batch " + esc(classCode));
-  if (hard) bits.push("<b>HARD MODE</b>");
-  if (tinkered) bits.push("<b>TINKERED</b>");
-  $("tag").innerHTML = bits.join(" · ");
-}
-function applyLook() { document.documentElement.style.setProperty("--rocket", SETTINGS.rocketColor); }
-
-/* ---- starfield ---- */
-(function stars() {
-  const c = $("stars"), g = c.getContext("2d");
-  function draw() {
-    c.width = innerWidth; c.height = innerHeight; g.fillStyle = "#fff";
-    for (let i = 0; i < (c.width * c.height) / 5000; i++) {
-      g.globalAlpha = Math.random() * 0.8 + 0.2;
-      g.beginPath(); g.arc(Math.random() * c.width, Math.random() * c.height, Math.random() * 1.4, 0, 7); g.fill();
-    }
-  }
-  draw(); addEventListener("resize", draw);
-})();
-
-/* ---- the order of buttons: half SPACE, half CLICK, mixed (never 3 the same in a row) ---- */
-function makeOrder(n) {
-  for (;;) {
-    const list = [];
-    for (let i = 0; i < n; i++) list.push(i < Math.ceil(n / 2) ? "Space" : "Click");
-    for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
-    if (!list.some((v, i) => i >= 2 && v === list[i - 1] && v === list[i - 2])) return list;
-  }
-}
-
-/* ---- start screen ---- */
-$("nick").value = store.get("nick", "");
-const checkStart = () => { $("go").disabled = !$("nick").value.trim(); };
-$("nick").oninput = checkStart; checkStart();
-$("nick").addEventListener("keydown", e => { if (e.key === "Enter" && !$("go").disabled) $("go").click(); });
-$("go").onclick = () => { store.set("nick", $("nick").value.trim()); newGame(); };
-
-function show(id) { document.querySelectorAll(".screen").forEach(s => s.classList.toggle("on", s.id === id)); }
-
-/* ---- the data table ---- */
-let order = [], results = [];
-let mode = "main", main = null, ch = null, chResult = null;   // main = the 10-round run; ch = the Final Challenge
-function setLog(title, labA, clsA, labB, clsB, note) {
-  $("logTitle").textContent = title; $("logNote").textContent = note;
-  $("avgLabA").textContent = labA; $("avgBoxA").className = "avg " + clsA;
-  $("avgLabB").textContent = labB; $("avgBoxB").className = "avg " + clsB;
-}
-function drawTable() {
-  if (mode === "challenge") return drawChallengeTable();
-  setLog("My data", "Average SPACE", "space", "Average CLICK", "click", "★ = your fastest round. ms = milliseconds (1000 ms = 1 second).");
-  const best = results.length ? Math.min(...results.map(r => r.ms)) : null;
-  let html = "";
-  for (let i = 0; i < order.length; i++) {
-    const r = results[i], used = order[i];
-    const chip = `<span class="chip ${used.toLowerCase()}">${used === "Space" ? "Space" : "Click"}</span>`;
-    if (r) html += `<tr class="${r.ms === best ? "best" : ""}"><td>${i + 1}</td><td>${chip}</td><td>${r.ms}</td></tr>`;
-    else html += `<tr class="empty ${i === results.length && state !== "idle" ? "now" : ""}"><td>${i + 1}</td><td>${i === results.length ? chip : "…"}</td><td>–</td></tr>`;
-  }
-  $("rows").innerHTML = html;
-  const avg = u => { const t = results.filter(r => r.used === u).map(r => r.ms); return t.length ? Math.round(t.reduce((a, b) => a + b, 0) / t.length) : "–"; };
-  $("avgSpace").textContent = avg("Space"); $("avgClick").textContent = avg("Click");
-  $("who").textContent = $("nick").value.trim() ? "Player: " + $("nick").value.trim() + (classCode ? " · Batch " + classCode : "") : "";
-}
-
-/* ---- the game ---- */
-let state = "idle", goAt = 0, timer = 0, decoyTimer = 0;
-const pad = $("pad");
-const need = () => order[results.length];
-const say = (big, small) => { $("bigText").textContent = big; $("smallText").textContent = small || ""; };
-
-function newGame() {
-  mode = "main"; main = null; ch = null; chResult = null;
-  order = makeOrder(SETTINGS.rounds); results = [];
-  state = "ready"; show("play"); readyRound();
-}
-function readyRound() {
-  state = "ready"; pad.className = "";
-  $("rocket").classList.remove("launch"); $("time").classList.remove("show");
-  const n = need();
-  const i = results.length, W = SETTINGS.warmUps;
-  $("roundText").textContent = mode !== "challenge" ? `Round ${i + 1} of ${order.length}`
-    : i < W ? `🏁 Warm-up ${i + 1} of ${W} (doesn't count)` : `🏁 Challenge round ${i - W + 1} of ${order.length - W}`;
-  $("useNow").className = n.toLowerCase();
-  $("useNow").textContent = n === "Space" ? "⌨ This round: SPACE BAR" : "🖱 This round: CLICK";
-  say(n === "Space" ? "Press SPACE to start" : "Click to start", "Then wait for GREEN.");
-  drawTable();
-}
-function startWaiting() {
-  state = "wait"; pad.className = "wait";
-  say("Wait for green…", SETTINGS.decoys ? "Careful: orange is a trick!" : "Don't move yet!");
-  const wait = (SETTINGS.minWait + Math.random() * Math.max(0, SETTINGS.maxWait - SETTINGS.minWait)) * 1000;
-  timer = setTimeout(turnGreen, wait);
-  if (SETTINGS.decoys && wait > 1500 && Math.random() < 0.6) {
-    decoyTimer = setTimeout(() => {
-      if (state !== "wait") return;
-      pad.className = "decoy";
-      setTimeout(() => { if (state === "wait") pad.className = "wait"; }, 450);
-    }, 400 + Math.random() * (wait - 1200));
-  }
-}
-function turnGreen() {
-  pad.className = "go";
-  say(SETTINGS.goText, need() === "Space" ? "SPACE BAR!" : "CLICK!");
-  requestAnimationFrame(t => { goAt = t; state = "go"; });   // the clock starts when green appears
-}
-function redo(big) {
-  clearTimeout(timer); clearTimeout(decoyTimer);
-  state = "early"; pad.className = "early";
-  say(big, "That one doesn't count. Same round again: " + (need() === "Space" ? "press SPACE." : "click."));
-}
-function input(e, used) {
-  if (state === "ready") {
-    if (used !== need()) { $("smallText").textContent = need() === "Space" ? "Use the SPACE BAR for this round." : "CLICK for this round (not the Space bar)."; return; }
-    return startWaiting();
-  }
-  if (state === "wait") return redo(pad.className === "decoy" ? "Tricked you!" : SETTINGS.earlyText);
-  if (state === "early") { if (used === need()) startWaiting(); return; }
-  if (state === "go") {
-    if (used !== need()) return redo("Wrong button!");
-    const now = (e && e.timeStamp) ? e.timeStamp : performance.now();
-    const ms = Math.max(0, Math.round(now - goAt));
-    results.push({ used, ms });
-    state = "flying"; whoosh();
-    $("rocket").classList.add("launch");
-    say(SETTINGS.launchText, "");
-    $("time").textContent = ms + " ms"; $("time").classList.add("show");
-    drawTable();
-    setTimeout(() => results.length < order.length ? readyRound() : mode === "challenge" ? challengeFinish() : finish(), 1400);
-  }
-}
-pad.addEventListener("pointerdown", e => { if (e.button > 0) return; e.preventDefault(); input(e, "Click"); });
-addEventListener("keydown", e => {
-  if (!$("play").classList.contains("on") || e.repeat) return;
-  if (e.code === "Space") { e.preventDefault(); input(e, "Space"); }
-});
-
-let audio;
-function whoosh() {
-  try {
-    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
-    const len = audio.sampleRate * 0.6, buf = audio.createBuffer(1, len, audio.sampleRate), d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
-    const src = audio.createBufferSource(), f = audio.createBiquadFilter(), v = audio.createGain();
-    f.type = "bandpass"; f.frequency.setValueAtTime(400, audio.currentTime);
-    f.frequency.exponentialRampToValueAtTime(2500, audio.currentTime + 0.6);
-    v.gain.value = 0.25; src.buffer = buf; src.connect(f); f.connect(v); v.connect(audio.destination); src.start();
-  } catch (e) {}
-}
-
-function finish() { state = "idle"; main = { order: order.slice(), results: results.slice() }; drawTable(); show("done"); }
-$("toGraph").onclick = () => { Graph.open(); show("graph"); };
-function playAgain() {
-  if (!confirm("Play a NEW set of rounds? Your table, your Graph Maker data and your challenge will be cleared.")) return;
-  Graph.reset(); newGame();
-}
-$("again").onclick = playAgain;
-$("again2").onclick = playAgain;
-
-/* =====================================================================
-   FINAL CHALLENGE: use your data to beat your own average.
-   Decide (pick the faster button) → Predict → Test (warm-up + scored
-   rounds) → Check (before vs after) → Send to the teacher.
-   ===================================================================== */
-const avgOf = a => a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : NaN;
-const myNick = () => $("gNick").value.trim() || $("nick").value.trim();
-const btnName = b => b === "Space" ? "Space bar" : "Click";
-function mainStats() {
-  const r = main.results, ms = r.map(x => x.ms), t = u => r.filter(x => x.used === u).map(x => x.ms);
-  const sorted = [...ms].sort((a, b) => a - b), med = sorted[sorted.length >> 1];
-  return { all: avgOf(ms), Space: avgOf(t("Space")), Click: avgOf(t("Click")),
-           first: avgOf(ms.slice(0, 3)), rest: avgOf(ms.slice(3)),
-           slow: ms.filter(v => v > med * 1.5 && v - med > 120) };
-}
-function openChallenge() {
-  if (!main) return;
-  const s = mainStats(), faster = s.Space <= s.Click ? "Space" : "Click", diff = Math.abs(s.Space - s.Click);
-  ch = { button: faster, faster, prediction: null, before: s.all, stats: s };
-  $("cSpace").textContent = s.Space + " ms"; $("cClick").textContent = s.Click + " ms";
-  $("cBoxSpace").classList.toggle("win", faster === "Space" && diff >= 10);
-  $("cBoxClick").classList.toggle("win", faster === "Click" && diff >= 10);
-  $("cSays").innerHTML = diff < 10 ? `Your data says: <b>about the same</b> (only ${diff} ms apart). Pick the one that feels best.`
-    : `Your data says: you're faster with <b>${faster === "Space" ? "the SPACE BAR" : "CLICK"}</b>, by <b>${diff} ms</b>.`;
-  const plan = [];
-  plan.push(s.first > s.rest + 15
-    ? `Your first rounds were slower (${s.first} ms, then ${s.rest} ms): practice helps! So you get <b>${SETTINGS.warmUps} warm-up rounds</b> that don't count.`
-    : `You get <b>${SETTINGS.warmUps} warm-up rounds</b> that don't count. Practice helps most people.`);
-  plan.push("Only one button this time: no switching between them.");
-  if (s.slow.length) plan.push(`You had a very slow round (${s.slow[0]} ms). Stay focused: eyes on the screen!`);
-  $("cPlan").innerHTML = plan.map(p => `<li>${p}</li>`).join("");
-  $("cBefore").textContent = s.all;
-  $("cPred").value = ""; $("cPred").placeholder = s.all; $("cStart").disabled = true;
-  pickButton(faster);
-  show("chSetup");
-}
-function pickButton(b) {
-  ch.button = b;
-  $("cPick").querySelectorAll("button").forEach(x => x.classList.toggle("on", x.dataset.v === b));
-  const s = ch.stats;
-  $("cPickNote").textContent = Math.abs(s.Space - s.Click) < 10 ? "Both are close, so either is a fair pick."
-    : b === ch.faster ? `Good choice: that's what your data says. Your old ${btnName(b)} average: ${s[b]} ms.`
-    : `That's your slower one (${s[b]} ms). A brave test: can it still beat your average?`;
-}
-$("cPick").querySelectorAll("button").forEach(x => x.onclick = () => pickButton(x.dataset.v));
-$("cPred").addEventListener("input", () => { $("cStart").disabled = !(Number($("cPred").value) > 0); });
-$("cPred").addEventListener("keydown", e => { if (e.key === "Enter" && !$("cStart").disabled) $("cStart").click(); });
-$("cStart").onclick = () => {
-  ch.prediction = Math.round(Number($("cPred").value));
-  mode = "challenge";
-  order = Array(SETTINGS.warmUps + SETTINGS.challengeRounds).fill(ch.button); results = [];
-  state = "ready"; show("play"); readyRound();
-};
-$("cBack").onclick = () => { Graph.open(); show("graph"); };
-
-function drawChallengeTable() {
-  const W = SETTINGS.warmUps, scored = results.slice(W), best = scored.length ? Math.min(...scored.map(r => r.ms)) : null;
-  let html = "";
-  for (let i = 0; i < order.length; i++) {
-    const r = results[i], warm = i < W, lab = warm ? "W" + (i + 1) : i - W + 1;
-    const chip = `<span class="chip ${order[i].toLowerCase()}">${order[i]}</span>`;
-    const now = i === results.length && state !== "idle" ? " now" : "";
-    if (r) html += `<tr class="${warm ? "warm" : r.ms === best ? "best" : ""}"><td>${lab}</td><td>${chip}</td><td>${r.ms}</td></tr>`;
-    else html += `<tr class="empty${warm ? " warm" : ""}${now}"><td>${lab}</td><td>${chip}</td><td>–</td></tr>`;
-  }
-  $("rows").innerHTML = html;
-  setLog("🏁 Final Challenge", "BEFORE (10 rounds)", "gold", "CHALLENGE average", ch.button.toLowerCase(),
-         "W = warm-up (doesn't count). ★ = your fastest challenge round.");
-  $("avgSpace").textContent = ch.before;
-  $("avgClick").textContent = scored.length ? avgOf(scored.map(r => r.ms)) : "–";
-}
-function challengeFinish() {
-  state = "idle"; drawTable();
-  const scored = results.slice(SETTINGS.warmUps).map(r => r.ms), after = avgOf(scored);
-  const delta = ch.before - after, same = ch.stats[ch.button];
-  chResult = { button: ch.button, before: ch.before, beforeBtn: same, after, prediction: ch.prediction, rounds: scored };
-  $("rBefore").textContent = ch.before + " ms"; $("rAfter").textContent = after + " ms";
-  $("rAfterNote").textContent = `${scored.length} rounds, ${btnName(ch.button)} only, after a warm-up`;
-  $("rDelta").innerHTML = delta > 0 ? `🎉 You got <b>${delta} ms faster</b> by using your data!`
-    : delta === 0 ? "Exactly the same as before!"
-    : `You were <b>${-delta} ms slower</b> this time. That's a real result too: scientists learn from tests that don't work.`;
-  $("rPred").innerHTML = `You predicted under <b>${ch.prediction} ms</b>. ` + (after < ch.prediction ? "✅ Your prediction came true!" : "❌ Not this time.");
-  $("rFair").innerHTML = `Same button, before and after: your old ${btnName(ch.button)} average was <b>${same} ms</b>. In the challenge: <b>${after} ms</b>.`;
-  $("bNick").textContent = myNick();
-  $("bLine").textContent = delta > 0 ? `Used data to get ${delta} ms faster` : "Tested a prediction with real data";
-  if (!$("chBatch").value.trim()) $("chBatch").value = $("gBatch").value.trim() || classCode || store.get("batch", "");
-  $("chSendMsg").textContent = ""; $("chSend").disabled = false;
-  show("chDone");
-}
-function leaveChallenge() {
-  mode = "main"; state = "idle";
-  if (main) { order = main.order.slice(); results = main.results.slice(); }
-  drawTable();
-}
-$("chBack").onclick = () => { leaveChallenge(); Graph.open(); show("graph"); };
-$("chRetry").onclick = () => { leaveChallenge(); openChallenge(); };
-$("chSend").onclick = async () => {
-  const batch = $("chBatch").value.trim();
-  if (!batch) { $("chSendMsg").textContent = "Type the class code your teacher gave you."; return; }
-  store.set("batch", batch);
-  $("chSend").disabled = true; $("chSendMsg").textContent = "Sending…";
-  const body = { type: "challenge", batch, nick: myNick(), ...chResult };
-  try {
-    const res = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) });
-    const out = await res.json();
-    if (!out.ok) throw new Error(out.error || "Not saved");
-    $("chSendMsg").innerHTML = "<b>Sent! ✓</b> Look at the big screen. (Sending again replaces your result.)";
-  } catch (e) {
-    $("chSendMsg").textContent = "Couldn't send (" + e.message + "). Check your internet and try again.";
-  }
-  $("chSend").disabled = false;
-};
-
-/* =====================================================================
-   GRAPH MAKER: students type their rounds, build a graph, read their
-   findings and send the data to the teacher's Class View.
-   ===================================================================== */
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwCdCEmp1_iGWKs8zqLhtawtpQaFXB9BKQHJREdd8jAq17u75QF82PfXEPZK4LKAWXk/exec";
-const Graph = (() => {
-  const COLORS = { Space: "#0fa494", Click: "#6d4aff" };
-  const gs = { get(k, d) { try { const v = localStorage.getItem("gm_" + k); return v === null ? d : v; } catch (e) { return d; } },
-               set(k, v) { try { localStorage.setItem("gm_" + k, v); } catch (e) {} } };
-  let N = 10, rows = [], guess = gs.get("guess", ""), view = "rounds", type = "line", sending = false;
-  try { rows = JSON.parse(gs.get("rows", "[]")); } catch (e) { rows = []; }
-
-  function buildTable() {
-    N = (main ? main.order.length : order.length) || SETTINGS.rounds;
-    rows = Array.from({ length: N }, (_, i) => ({ used: rows[i]?.used || null, ms: rows[i]?.ms ?? null }));
-    $("gRows").innerHTML = rows.map((r, i) => `<tr><td class="r">${i + 1}</td>
-      <td><span class="used" data-i="${i}"><button class="space" data-v="Space">Space</button><button class="click" data-v="Click">Click</button></span></td>
-      <td><input type="number" min="0" max="9999" data-i="${i}" value="${r.ms ?? ""}"><span class="warn" id="gw${i}"></span></td></tr>`).join("");
-    document.querySelectorAll("#gRows .used").forEach(g => {
-      const i = +g.dataset.i;
-      g.querySelectorAll("button").forEach(b => {
-        b.classList.toggle("on", rows[i].used === b.dataset.v);
-        b.onclick = () => { rows[i].used = b.dataset.v; g.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); update(); };
-      });
+/* ---------- fake class for practice: class.html?demo=1 ---------- */
+function demoData() {
+  const names = ["NovaFox", "Pixel", "Blaze", "Comet", "Zippy", "Orbit", "Turbo", "Echo", "Rocket", "Luna", "Bolt", "Astro", "Spark", "Jet", "Mango", "Ninja"];
+  return names.map((nick, k) => {
+    const base = 240 + Math.random() * 120, clickPen = (Math.random() - .3) * 60;
+    const order = []; for (let i = 0; i < 10; i++) order.push(i < 5 ? "Space" : "Click");
+    order.sort(() => Math.random() - .5);
+    const rounds = order.map((used, i) => {
+      let ms = base + (used === "Click" ? clickPen : 0) + Math.max(0, 80 - i * 14) + (Math.random() - .5) * 50 + (i >= 8 ? 15 : 0);
+      if (Math.random() < .06) ms += 300;
+      return { round: i + 1, used, ms: r0(ms) };
     });
-    document.querySelectorAll("#gRows input").forEach(inp => inp.addEventListener("input", () => {
-      const v = inp.value.trim(); rows[+inp.dataset.i].ms = v === "" ? null : Math.round(Number(v)); update();
-    }));
-  }
-  function choice(id, get, set) {
-    const box = $(id);
-    box.querySelectorAll("button").forEach(b => {
-      b.classList.toggle("on", b.dataset.v === get());
-      b.onclick = () => { set(b.dataset.v); box.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); update(); };
-    });
-  }
-  choice("gGuess", () => guess, v => guess = v);
-  choice("gView", () => view, v => view = v);
-  choice("gType", () => type, v => type = v);
-  ["gNick", "gBatch", "gTitle"].forEach(id => $(id).addEventListener("input", update));
-  $("gAuto").onclick = () => {                      // copy the game's table straight in
-    const res = main ? main.results : results;
-    rows = Array.from({ length: N }, (_, i) => res[i] ? { used: res[i].used, ms: res[i].ms } : { used: null, ms: null });
-    buildTable(); update();
-  };
-  $("gDrop").addEventListener("change", update);
-  $("gChallenge").onclick = () => openChallenge();
-
-  const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN;
-  const median = a => { if (!a.length) return NaN; const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
-  function outliers(list) { const med = median(list.map(r => r.ms)); return new Set(list.filter(r => r.ms > med * 1.5 && r.ms - med > 120).map(r => r.round)); }
-
-  function check() {
-    const problems = []; let filled = 0;
-    rows.forEach((r, i) => {
-      let w = "", note = false;                         // warnings only: nothing here blocks a real time
-      if (r.ms != null && !(r.ms > 0)) w = "Type a time above 0.";
-      else if (r.ms != null && !r.used) w = "Space or Click?";
-      else if (r.ms != null && r.ms < 100) w = "Faster than any human: check it! (6 seconds = 6000 ms)";
-      else if (r.ms != null && r.ms > 2000) { w = "A slow one: maybe an outlier. Keep it if it's true!"; note = true; }
-      $("gw" + i).textContent = w; $("gw" + i).className = "warn" + (note ? " note" : "");
-      if (r.used && r.ms != null && r.ms > 0) filled++;
-    });
-    const sp = rows.filter(r => r.used === "Space").length, cl = rows.filter(r => r.used === "Click").length;
-    if (filled < N) problems.push(`${filled} of ${N} rounds filled in.`);
-    else if (sp !== cl && N % 2 === 0) problems.push(`You have ${sp} Space and ${cl} Click rounds. The game gave you ${N / 2} of each: check the "Used" column.`);
-    return { filled, problems };
-  }
-
-  function niceMax(v) { const steps = [100, 200, 250, 500, 1000]; const raw = v * 1.15; for (const s of steps) { const m = Math.ceil(raw / s) * s; if (m / s <= 8) return m; } return Math.ceil(raw / 1000) * 1000; }
-  function frame(W, H, P, max, yLabel) {
-    let s = ""; const d = [4, 5, 6].find(k => (max / k) % 50 === 0) || 5, step = max / d;
-    for (let i = 0; i <= d; i++) {
-      const v = Math.round(step * i), y = H - P.b - (H - P.t - P.b) * (v / max);
-      s += `<line x1="${P.l}" x2="${W - P.r}" y1="${y}" y2="${y}" stroke="#e8ecf5"/><text x="${P.l - 8}" y="${y + 4}" text-anchor="end" font-size="12" fill="#5b6488">${v}</text>`;
-    }
-    return s + `<text transform="translate(14 ${(H - P.b + P.t) / 2}) rotate(-90)" text-anchor="middle" font-size="12" fill="#5b6488">${yLabel}</text>`;
-  }
-  function drawChart(list, outs, drop) {
-    const W = 760, H = 360, P = { l: 58, r: 20, t: 46, b: 50 }, title = $("gTitle").value.trim();
-    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title || "Reaction time graph")}">`;
-    svg += `<text x="${W / 2}" y="26" text-anchor="middle" font-size="18" font-weight="700" fill="${title ? "#141a33" : "#b0b7d0"}">${esc(title || "(give your graph a title)")}</text>`;
-    const use = list.filter(r => !(drop && outs.has(r.round))), teach = [];
-    if (view === "rounds") {
-      const max = niceMax(Math.max(...list.map(r => r.ms), 300)), cw = (W - P.l - P.r) / N, y = v => H - P.b - (H - P.t - P.b) * (v / max);
-      svg += frame(W, H, P, max, "Reaction time (ms)");
-      for (let i = 0; i < N; i++) svg += `<text x="${P.l + cw * (i + .5)}" y="${H - P.b + 18}" text-anchor="middle" font-size="12" fill="#5b6488">${i + 1}</text>`;
-      svg += `<text x="${(W + P.l) / 2}" y="${H - 8}" text-anchor="middle" font-size="12" fill="#5b6488">Round</text>`;
-      if (type === "bar") {
-        list.forEach(r => {
-          const x = P.l + cw * (r.round - 1) + cw * .18, w = cw * .64, out = outs.has(r.round);
-          svg += `<rect x="${x}" y="${y(r.ms)}" width="${w}" height="${H - P.b - y(r.ms)}" rx="4" fill="${COLORS[r.used]}" opacity="${drop && out ? .25 : 1}"/>`;
-          svg += `<text x="${x + w / 2}" y="${y(r.ms) - 5}" text-anchor="middle" font-size="11" fill="#141a33">${r.ms}</text>`;
-          if (out) svg += `<text x="${x + w / 2}" y="${y(r.ms) - 19}" text-anchor="middle" font-size="11" font-weight="700" fill="#d63a40">outlier?</text>`;
-        });
-      } else {
-        ["Space", "Click"].forEach(u => {
-          const pts = use.filter(r => r.used === u).map(r => [P.l + cw * (r.round - .5), y(r.ms)]);
-          if (pts.length > 1) svg += `<polyline points="${pts.map(p => p.join(",")).join(" ")}" fill="none" stroke="${COLORS[u]}" stroke-width="3"/>`;
-        });
-        list.forEach(r => {
-          const out = outs.has(r.round), cx = P.l + cw * (r.round - .5);
-          svg += `<circle cx="${cx}" cy="${y(r.ms)}" r="6" fill="${COLORS[r.used]}" opacity="${drop && out ? .25 : 1}"/>`;
-          svg += `<text x="${cx}" y="${y(r.ms) - 10}" text-anchor="middle" font-size="11" fill="#141a33">${r.ms}</text>`;
-          if (out) svg += `<text x="${cx}" y="${y(r.ms) - 24}" text-anchor="middle" font-size="11" font-weight="700" fill="#d63a40">outlier?</text>`;
-        });
-        teach.push("💡 Lines are good for <b>change over time</b>. Is your line going down as you get more practice?");
-      }
-      svg += `<g font-size="13" font-weight="600"><rect x="${W - 190}" y="${P.t - 4}" width="12" height="12" rx="3" fill="${COLORS.Space}"/><text x="${W - 172}" y="${P.t + 6}" fill="#141a33">Space</text>`
-           + `<rect x="${W - 110}" y="${P.t - 4}" width="12" height="12" rx="3" fill="${COLORS.Click}"/><text x="${W - 92}" y="${P.t + 6}" fill="#141a33">Click</text></g>`;
-    } else {
-      const avg = u => Math.round(mean(use.filter(r => r.used === u).map(r => r.ms))), a = { Space: avg("Space"), Click: avg("Click") };
-      const max = niceMax(Math.max(a.Space || 0, a.Click || 0, 300)), y = v => H - P.b - (H - P.t - P.b) * (v / max);
-      const cx = { Space: P.l + (W - P.l - P.r) * .3, Click: P.l + (W - P.l - P.r) * .7 };
-      svg += frame(W, H, P, max, "Average reaction time (ms)");
-      if (type === "bar") {
-        ["Space", "Click"].forEach(u => { if (isNaN(a[u])) return;
-          svg += `<rect x="${cx[u] - 70}" y="${y(a[u])}" width="140" height="${H - P.b - y(a[u])}" rx="6" fill="${COLORS[u]}"/><text x="${cx[u]}" y="${y(a[u]) - 8}" text-anchor="middle" font-size="16" font-weight="700" fill="#141a33">${a[u]} ms</text>`; });
-      } else {
-        svg += `<polyline points="${cx.Space},${y(a.Space)} ${cx.Click},${y(a.Click)}" fill="none" stroke="#8a93b8" stroke-width="3"/>`;
-        ["Space", "Click"].forEach(u => { svg += `<circle cx="${cx[u]}" cy="${y(a[u])}" r="8" fill="${COLORS[u]}"/><text x="${cx[u]}" y="${y(a[u]) - 14}" text-anchor="middle" font-size="15" font-weight="700">${a[u]} ms</text>`; });
-        teach.push("💡 A line joins things that come <b>in order</b>, like round 1, 2, 3… Space and Click are two separate groups, so <b>bars</b> show them better. Try switching!");
-      }
-      ["Space", "Click"].forEach(u => { svg += `<text x="${cx[u]}" y="${H - P.b + 22}" text-anchor="middle" font-size="15" font-weight="700" fill="${COLORS[u]}">${u === "Space" ? "Space bar" : "Click"}</text>`; });
-    }
-    $("gChartBox").innerHTML = svg + "</svg>";
-    $("gTeach").innerHTML = teach.join("<br>"); $("gTeach").style.display = teach.length ? "block" : "none";
-  }
-
-  function findings(list, outs, drop) {
-    const use = list.filter(r => !(drop && outs.has(r.round))), times = u => use.filter(r => r.used === u).map(r => r.ms);
-    const aS = Math.round(mean(times("Space"))), aC = Math.round(mean(times("Click")));
-    const diff = Math.abs(aS - aC), faster = diff < 10 ? "Same" : aS < aC ? "Space" : "Click", c = [];
-    c.push(`<div class="find ${faster === "Click" ? "click" : "space"}"><div class="q">1 · Space or Click?</div><div class="a">${faster === "Same" ? "About the same!" : `Faster with ${faster === "Space" ? "SPACE" : "CLICK"} by ${diff} ms`}</div><div class="d">Average Space: <b>${aS} ms</b> · Average Click: <b>${aC} ms</b></div></div>`);
-    const g = guess ? (guess === faster ? "Your guess was right! 🎯" : "Your guess was not right, and that's OK!") : "Pick your guess in step 1.";
-    c.push(`<div class="find amber"><div class="q">2 · Was my guess right?</div><div class="a">${g}</div><div class="d">${guess ? `You guessed: ${guess === "Same" ? "about the same" : guess === "Space" ? "Space bar is faster" : "Click is faster"}. Data can prove a guess right or wrong.` : ""}</div></div>`);
-    const best = use.reduce((m, r) => r.ms < m.ms ? r : m, use[0]), avgAll = Math.round(mean(use.map(r => r.ms)));
-    c.push(`<div class="find"><div class="q">3 · Best vs average</div><div class="a">Best ${best.ms} ms · Average ${avgAll} ms</div><div class="d">Your best (round ${best.round}) might be a lucky round. Your <b>average</b> shows your real speed. That's why scientists use averages.</div></div>`);
-    const range = u => { const t = times(u); return t.length ? Math.max(...t) - Math.min(...t) : NaN; }, rS = range("Space"), rC = range("Click");
-    c.push(`<div class="find"><div class="q">4 · How steady am I?</div><div class="a">${Math.abs(rS - rC) < 15 ? "Equally steady with both" : rS < rC ? "Steadier with SPACE" : "Steadier with CLICK"}</div><div class="d">Gap between fastest and slowest: Space <b>${rS} ms</b>, Click <b>${rC} ms</b>. A smaller gap = more consistent.</div></div>`);
-    if (outs.size) {
-      const o = list.filter(r => outs.has(r.round)), withAll = Math.round(mean(list.map(r => r.ms))), without = Math.round(mean(list.filter(r => !outs.has(r.round)).map(r => r.ms)));
-      c.push(`<div class="find coral"><div class="q">5 · Spot the outlier</div><div class="a">Round ${o.map(r => r.round).join(", ")} was much slower</div><div class="d">${o.map(r => r.ms + " ms").join(", ")}: maybe you blinked or looked away? Average with it: <b>${withAll} ms</b>, without it: <b>${without} ms</b>. Tick "Leave out outliers" to see your graph change.</div></div>`);
-    } else {
-      c.push(`<div class="find space"><div class="q">5 · Spot the outlier</div><div class="a">No outliers. Nice and steady!</div><div class="d">An outlier is a round much slower (or faster) than the rest. None of yours stand out.</div></div>`);
-    }
-    $("gFinds").innerHTML = c.join("");
-  }
-
-  function update() {
-    gs.set("guess", guess); gs.set("rows", JSON.stringify(rows));
-    const { filled, problems } = check();
-    const list = rows.map((r, i) => ({ round: i + 1, used: r.used, ms: r.ms })).filter(r => r.used && r.ms != null && r.ms > 0);
-    const outs = list.length >= 4 ? outliers(list) : new Set(), drop = $("gDrop").checked, ready = filled === N && !problems.length;
-    $("gStatus").textContent = problems.length ? problems.join(" ") : "All rounds filled in. Great data!";
-    $("gStatus").className = "gstatus" + (problems.length ? "" : " ok");
-    if (list.length >= 2) drawChart(list, outs, drop);
-    else $("gChartBox").innerHTML = `<div class="empty">Your graph appears here as you type your data.</div>`;
-    if (list.some(r => r.used === "Space") && list.some(r => r.used === "Click")) findings(list, outs, drop);
-    else $("gFinds").innerHTML = `<div class="empty" style="grid-column:1/-1">Fill in your table to see your findings.</div>`;
-    gs.set("batch", $("gBatch").value.trim());
-    $("gAuto").disabled = !(main ? main.results : results).length;
-    $("gChallenge").disabled = !main;
-    $("gChMsg").innerHTML = !main ? "Finish your 10 rounds first." : chResult
-      ? `Your last try: ${chResult.before} → <b>${chResult.after} ms</b>` : "Ready when you are!";
-    const can = ready && $("gNick").value.trim() && $("gBatch").value.trim() && guess;
-    $("gSend").disabled = !can;
-    if (!sending) $("gSendMsg").textContent = can ? "Ready! Your teacher will see it on the class screen." :
-      !ready ? "Fill in all your rounds first." : !guess ? "Pick your guess in step 1." : !$("gNick").value.trim() ? "Add your nickname." :
-      "Type the class code your teacher gave you.";
-  }
-
-  $("gSend").onclick = async () => {
-    sending = true; $("gSend").disabled = true; $("gSendMsg").textContent = "Sending…";
-    const body = { batch: $("gBatch").value.trim(), nick: $("gNick").value.trim(), guess, rounds: rows.map((r, i) => ({ round: i + 1, used: r.used, ms: r.ms })) };
-    try {
-      const res = await fetch(SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) });
-      const out = await res.json();
-      if (!out.ok) throw new Error(out.error || "Not saved");
-      $("gSendMsg").innerHTML = "<b>Sent! ✓</b> Look at the big screen. (Sending again replaces your data.)";
-    } catch (e) {
-      $("gSendMsg").textContent = "Couldn't send (" + e.message + "). Check your internet and try again.";
-    }
-    sending = false; $("gSend").disabled = false;
-  };
-
-  return {
-    open() {
-      if (!$("gNick").value.trim()) $("gNick").value = $("nick").value.trim();
-      if (!$("gBatch").value.trim()) $("gBatch").value = classCode || gs.get("batch", "");
-      buildTable(); update();
-    },
-    reset() {
-      rows = []; guess = ""; gs.set("rows", "[]"); gs.set("guess", ""); $("gTitle").value = ""; $("gDrop").checked = false;
-      document.querySelectorAll("#gGuess button").forEach(b => b.classList.remove("on"));
-    }
-  };
-})();
-
-/* ---- Tinker panel: edits SETTINGS live ---- */
-if (params.get("tinker") === "1") $("gear").style.display = "block";
-const panel = $("tinker");
-function fillPanel() {
-  panel.querySelectorAll("[data-set]").forEach(inp => {
-    const v = SETTINGS[inp.dataset.set];
-    if (inp.type === "checkbox") inp.checked = v; else inp.value = v;
+    return { nick, guess: ["Space", "Click", "Same"][k % 3], rounds };
   });
 }
-panel.querySelectorAll("[data-set]").forEach(inp => inp.addEventListener("input", () => {
-  const k = inp.dataset.set;
-  let v = inp.type === "checkbox" ? inp.checked : inp.type === "number" ? Number(inp.value) : inp.value;
-  if (k === "rounds") v = Math.min(20, Math.max(2, Math.round(v) || 2));
-  if ((k === "minWait" || k === "maxWait") && !(v > 0)) return;
-  SETTINGS[k] = v;
-  if (SETTINGS.maxWait < SETTINGS.minWait) SETTINGS.maxWait = SETTINGS.minWait;
-  tinkered = JSON.stringify(SETTINGS) !== ORIGINAL;
-  applyLook(); refreshTag();
-}));
-$("gear").onclick = () => { fillPanel(); panel.classList.add("open"); };
-$("closeTinker").onclick = () => panel.classList.remove("open");
-panel.addEventListener("pointerdown", e => e.stopPropagation());
-panel.addEventListener("keydown", e => e.stopPropagation());
 
-order = makeOrder(SETTINGS.rounds);
-applyLook(); refreshTag(); drawTable();
+function demoChallenges(students) {
+  return students.filter((_, k) => k % 7 !== 3).map(st => {
+    const s = summarise(st), button = s.aS <= s.aC ? "Space" : "Click", beforeBtn = r0(button === "Space" ? s.aS : s.aC);
+    const after = r0(beforeBtn - 25 + Math.random() * 40);
+    return { nick: st.nick, button, before: r0(s.avg), beforeBtn, after, prediction: r0(s.avg - 10 - Math.random() * 40) };
+  });
+}
+
+/* ---------- per-student numbers ---------- */
+function summarise(st) {
+  const t = u => st.rounds.filter(r => r.used === u).map(r => r.ms);
+  const aS = mean(t("Space")), aC = mean(t("Click")), all = st.rounds.map(r => r.ms);
+  const faster = Math.abs(aS - aC) < 10 ? "Same" : aS < aC ? "Space" : "Click";
+  return { ...st, aS, aC, avg: mean(all), best: Math.min(...all), range: Math.max(...all) - Math.min(...all), faster };
+}
+
+/* ---------- SVG helpers ---------- */
+function niceMax(v) { for (const s of [50, 100, 200, 250, 500]) { const m = Math.ceil(v * 1.12 / s) * s; if (m / s <= 8) return m; } return Math.ceil(v / 1000) * 1000; }
+function axes(W, H, P, min, max, label) {
+  let s = ""; const d = [4, 5, 6].find(k => ((max - min) / k) % 25 === 0) || 5, step = (max - min) / d;
+  for (let i = 0; i <= d; i++) {
+    const v = r0(min + step * i), y = H - P.b - (H - P.t - P.b) * ((v - min) / (max - min));
+    s += `<line x1="${P.l}" x2="${W - P.r}" y1="${y}" y2="${y}" stroke="${C.grid}"/><text x="${P.l - 8}" y="${y + 4}" text-anchor="end" font-size="12" fill="${C.muted}">${v}</text>`;
+  }
+  if (label) s += `<text transform="translate(14 ${(H - P.b + P.t) / 2}) rotate(-90)" text-anchor="middle" font-size="12" fill="${C.muted}">${label}</text>`;
+  return s;
+}
+
+/* 6 · practice: class average by round number */
+function chartRounds(S) {
+  const n = Math.max(...S.map(s => s.rounds.length));
+  const avg = []; for (let i = 1; i <= n; i++) avg.push(mean(S.flatMap(s => s.rounds.filter(r => r.round === i).map(r => r.ms))));
+  const W = 700, H = 320, P = { l: 56, r: 20, t: 20, b: 46 };
+  const lo = Math.max(0, Math.floor((Math.min(...avg) - 60) / 50) * 50), hi = niceMax(Math.max(...avg));
+  const x = i => P.l + (W - P.l - P.r) * (i / (n - 1)), y = v => H - P.b - (H - P.t - P.b) * ((v - lo) / (hi - lo));
+  let s = `<svg viewBox="0 0 ${W} ${H}">` + axes(W, H, P, lo, hi, "Class average (ms)");
+  avg.forEach((v, i) => { s += `<text x="${x(i)}" y="${H - P.b + 18}" text-anchor="middle" font-size="12" fill="${C.muted}">${i + 1}</text>`; });
+  s += `<text x="${(W + P.l) / 2}" y="${H - 6}" text-anchor="middle" font-size="12" fill="${C.muted}">Round</text>`;
+  s += `<polyline points="${avg.map((v, i) => x(i) + "," + y(v)).join(" ")}" fill="none" stroke="${C.amber}" stroke-width="4"/>`;
+  const iMin = avg.indexOf(Math.min(...avg));
+  avg.forEach((v, i) => {
+    const key = i === 0 || i === iMin || i === n - 1;
+    s += `<circle cx="${x(i)}" cy="${y(v)}" r="${key ? 7 : 5}" fill="${i === 0 ? C.coral : i === iMin ? C.Space : C.amber}"/>`;
+    if (key) s += `<text x="${x(i)}" y="${y(v) - 12}" text-anchor="middle" font-size="13" font-weight="700">${r0(v)}</text>`;
+  });
+  s += "</svg>";
+  const first = avg[0], laterAvg = mean(avg.slice(1));
+  const end = avg[n - 1] - avg[iMin] > 15 && iMin < n - 1 ? ` After round ${iMin + 1} it creeps back up: tired or bored?` : "";
+  const ans = first > laterAvg + 10 ? `Round 1 was slower (${r0(first)} ms) than the rounds after it (${r0(laterAvg)} ms on average). Practice made us faster!${end}`
+            : `Round 1 (${r0(first)} ms) was about the same as the rest (${r0(laterAvg)} ms).${end}`;
+  return { svg: s, ans };
+}
+
+/* 7 · class Space vs Click */
+function chartSpaceClick(S) {
+  const aS = mean(S.flatMap(s => s.rounds.filter(r => r.used === "Space").map(r => r.ms)));
+  const aC = mean(S.flatMap(s => s.rounds.filter(r => r.used === "Click").map(r => r.ms)));
+  const W = 700, H = 300, P = { l: 56, r: 20, t: 30, b: 40 }, hi = niceMax(Math.max(aS, aC));
+  const y = v => H - P.b - (H - P.t - P.b) * (v / hi);
+  let s = `<svg viewBox="0 0 ${W} ${H}">` + axes(W, H, P, 0, hi, "Class average (ms)");
+  [["Space", aS, .3], ["Click", aC, .7]].forEach(([u, v, f]) => {
+    const cx = P.l + (W - P.l - P.r) * f;
+    s += `<rect x="${cx - 80}" y="${y(v)}" width="160" height="${H - P.b - y(v)}" rx="6" fill="${C[u]}"/>`;
+    s += `<text x="${cx}" y="${y(v) - 8}" text-anchor="middle" font-size="18" font-weight="700">${r0(v)} ms</text>`;
+    s += `<text x="${cx}" y="${H - P.b + 22}" text-anchor="middle" font-size="15" font-weight="700" fill="${C[u]}">${u === "Space" ? "Space bar" : "Click"}</text>`;
+  });
+  s += "</svg>";
+  const nS = S.filter(s => s.faster === "Space").length, nC = S.filter(s => s.faster === "Click").length, nE = S.length - nS - nC;
+  const ans = `${nS} of ${S.length} students were faster with Space, ${nC} with Click${nE ? `, ${nE} about the same` : ""}. As a class: ${Math.abs(aS - aC) < 10 ? "about the same" : (aS < aC ? "Space" : "Click") + " is faster by " + r0(Math.abs(aS - aC)) + " ms"}.`;
+  return { svg: s, ans };
+}
+
+/* 8 · where most of us land (students' averages) */
+function chartSpread(S) {
+  const vals = S.map(s => s.avg), bin = 25;
+  const lo = Math.floor(Math.min(...vals) / bin) * bin, hi = Math.ceil((Math.max(...vals) + 1) / bin) * bin;
+  const bins = []; for (let b = lo; b < hi; b += bin) bins.push({ b, n: vals.filter(v => v >= b && v < b + bin).length });
+  const W = 700, H = 300, P = { l: 46, r: 20, t: 24, b: 50 }, top = Math.max(...bins.map(b => b.n));
+  const bw = (W - P.l - P.r) / bins.length, y = v => H - P.b - (H - P.t - P.b) * (v / Math.max(top, 1));
+  let s = `<svg viewBox="0 0 ${W} ${H}">`;
+  bins.forEach((b, i) => {
+    const x = P.l + bw * i;
+    s += `<rect x="${x + 3}" y="${y(b.n)}" width="${bw - 6}" height="${H - P.b - y(b.n)}" rx="4" fill="${b.n === top ? C.amber : "#c9cfe3"}"/>`;
+    if (b.n) s += `<text x="${x + bw / 2}" y="${y(b.n) - 6}" text-anchor="middle" font-size="13" font-weight="700">${b.n}</text>`;
+    s += `<text x="${x + bw / 2}" y="${H - P.b + 16}" text-anchor="middle" font-size="11" fill="${C.muted}">${b.b}-${b.b + bin}</text>`;
+  });
+  s += `<text x="${(W + P.l) / 2}" y="${H - 8}" text-anchor="middle" font-size="12" fill="${C.muted}">Student's average reaction time (ms)</text></svg>`;
+  const peak = bins.find(b => b.n === top);
+  return { svg: s, ans: `Most of us (${top} students) landed between ${peak.b} and ${peak.b + bin} ms.` };
+}
+
+/* 10 · us vs a typical human */
+function chartHuman(S) {
+  const cls = mean(S.map(s => s.avg)), W = 700, H = 170, P = { l: 120, r: 30, t: 20, b: 30 }, hi = niceMax(Math.max(cls, HUMAN));
+  const x = v => P.l + (W - P.l - P.r) * (v / hi);
+  let s = `<svg viewBox="0 0 ${W} ${H}">`;
+  [["Our class", cls, C.amber, 30], ["Typical human", HUMAN, "#9aa3c4", 90]].forEach(([l, v, c, yy]) => {
+    s += `<text x="${P.l - 10}" y="${yy + 24}" text-anchor="end" font-size="15" font-weight="700">${l}</text>`;
+    s += `<rect x="${P.l}" y="${yy}" width="${x(v) - P.l}" height="38" rx="6" fill="${c}"/>`;
+    s += `<text x="${x(v) + 8}" y="${yy + 25}" font-size="15" font-weight="700">${r0(v)} ms</text>`;
+  });
+  s += "</svg>";
+  const d = r0(cls - HUMAN);
+  return { svg: s, ans: Math.abs(d) < 15 ? "We're right at a typical human speed." : d < 0 ? `We're ${-d} ms faster than a typical human! 🚀` : `We're ${d} ms slower than a typical human. More practice?` };
+}
+
+/* 11 · Final Challenge: did using our data help? (before -> after for each student) */
+function chartChallenge(CH) {
+  const L = [...CH].sort((a, b) => (b.before - b.after) - (a.before - a.after)).slice(0, 32);
+  const vals = L.flatMap(c => [c.before, c.after]);
+  const lo = Math.max(0, Math.floor((Math.min(...vals) - 10) / 25) * 25), hi = Math.ceil((Math.max(...vals) + 10) / 25) * 25;
+  const W = 700, row = 26, P = { l: 110, r: 80, t: 30, b: 40 }, H = P.t + row * L.length + P.b;
+  const x = v => P.l + (W - P.l - P.r) * ((v - lo) / (hi - lo));
+  let s = `<svg viewBox="0 0 ${W} ${H}">`;
+  const step = hi - lo <= 200 ? 25 : hi - lo <= 400 ? 50 : 100;
+  for (let v = lo; v <= hi; v += step) s += `<line x1="${x(v)}" x2="${x(v)}" y1="${P.t - 8}" y2="${H - P.b + 4}" stroke="${C.grid}"/><text x="${x(v)}" y="${H - P.b + 20}" text-anchor="middle" font-size="12" fill="${C.muted}">${v}</text>`;
+  s += `<text x="${(P.l + W - P.r) / 2}" y="${H - 4}" text-anchor="middle" font-size="12" fill="${C.muted}">Average reaction time (ms): left is faster</text>`;
+  s += `<g font-size="12" font-weight="700"><circle cx="${P.l + 6}" cy="12" r="6" fill="#9aa3c4"/><text x="${P.l + 16}" y="16" fill="${C.muted}">Before (10 rounds)</text>`
+     + `<circle cx="${P.l + 160}" cy="12" r="6" fill="#2db77a"/><text x="${P.l + 170}" y="16" fill="${C.muted}">After (Final Challenge)</text></g>`;
+  L.forEach((c, i) => {
+    const y = P.t + row * i + row / 2, d = c.before - c.after, col = d > 0 ? "#2db77a" : d < 0 ? C.coral : C.muted;
+    s += `<text x="${P.l - 10}" y="${y + 4}" text-anchor="end" font-size="13" font-weight="600">${esc(c.nick)}</text>`;
+    s += `<line x1="${x(c.before)}" x2="${x(c.after)}" y1="${y}" y2="${y}" stroke="${col}" stroke-width="3" opacity=".55"/>`;
+    s += `<circle cx="${x(c.before)}" cy="${y}" r="6" fill="#9aa3c4"/><circle cx="${x(c.after)}" cy="${y}" r="7" fill="${col}"/>`;
+    s += `<text x="${W - P.r + 10}" y="${y + 4}" font-size="13" font-weight="700" fill="${col}">${d > 0 ? "−" + d : d < 0 ? "+" + -d : "±0"} ms</text>`;
+  });
+  return s + "</svg>";
+}
+function challengeCard(CH) {
+  if (!CH.length) return "";
+  const better = CH.filter(c => c.after < c.before).length, pred = CH.filter(c => c.prediction && c.after < c.prediction).length;
+  const b = r0(mean(CH.map(c => c.before))), a = r0(mean(CH.map(c => c.after)));
+  const pick = CH.filter(c => c.beforeBtn).length;
+  return `<div class="card wide act"><h2>🏁 Final Challenge: did using our data help?</h2>
+    <p class="q">Each student picked their faster button from their own data, warmed up, then played ${"5"} rounds. Before = their 10-round average.</p>
+    <div class="cols"><div>
+      <div class="head">${better} of ${CH.length}<small>of us got faster by using our data</small></div>
+      <div class="mini">
+        <div>Class before<b>${b} ms</b></div>
+        <div>Class after<b style="color:#2db77a">${a} ms</b></div>
+        <div>Faster by<b>${b - a} ms</b></div>
+        <div>Predictions that came true<b>${pred} / ${CH.length}</b></div>
+      </div>
+      <p class="ans">${better >= CH.length / 2 ? "Using our data worked! We collected, analysed, acted, and checked." : "Mixed results: a real finding! What else could we change next time?"}</p>
+    </div><div>${chartChallenge(CH)}</div></div></div>`;
+}
+
+/* ---------- render ---------- */
+function render(students, label, challenges) {
+  const S = students.filter(s => s.rounds && s.rounds.length >= 2 && s.rounds.some(r => r.used === "Space") && s.rounds.some(r => r.used === "Click")).map(summarise);
+  const CH = (challenges || []).filter(c => c.before > 0 && c.after > 0);
+  $("meta").textContent = label;
+  if (!S.length) { $("big").innerHTML = ""; $("grid").innerHTML = challengeCard(CH) || `<div class="card wide empty">No data yet for this batch. Waiting for students to press <b>Send</b>…</div>`; return; }
+
+  const right = S.filter(s => s.guess && s.guess === s.faster).length;
+  const fastest = [...S].sort((a, b) => a.avg - b.avg)[0];
+  $("big").innerHTML =
+    `<div class="stat"><b>${S.length}</b><span>students sent data</span></div>` +
+    `<div class="stat"><b>${S.length * 10 > 0 ? S.reduce((n, s) => n + s.rounds.length, 0) : 0}</b><span>rounds of data</span></div>` +
+    `<div class="stat"><b>${r0(mean(S.map(s => s.avg)))} ms</b><span>class average</span></div>` +
+    `<div class="stat"><b>${right} / ${S.length}</b><span>guessed right</span></div>` +
+    `<div class="stat"><b>${esc(fastest.nick)}</b><span>fastest average (${r0(fastest.avg)} ms)</span></div>` +
+    (CH.length ? `<div class="stat" style="border-color:var(--amber)"><b>${CH.filter(c => c.after < c.before).length} / ${CH.length}</b><span>faster in the Final Challenge</span></div>` : "");
+
+  const a = chartSpaceClick(S), b = chartRounds(S), c = chartSpread(S), h = chartHuman(S);
+  const steady = [...S].sort((x, y) => x.range - y.range).slice(0, 3);
+  const quick = [...S].sort((x, y) => x.avg - y.avg).slice(0, 3);
+  const medal = ["🥇", "🥈", "🥉"];
+  const outl = S.flatMap(s => { const m = mean(s.rounds.map(r => r.ms)); return s.rounds.filter(r => r.ms > m * 1.5 && r.ms - m > 120).map(r => ({ nick: s.nick, ...r })); })
+                .sort((x, y) => y.ms - x.ms).slice(0, 5);
+
+  $("grid").innerHTML = challengeCard(CH) + `
+    <div class="card"><h2>Space bar or Click?</h2><p class="q">Which is faster for our class?</p>${a.svg}<p class="ans">${a.ans}</p></div>
+    <div class="card"><h2>Does practice make us faster?</h2><p class="q">Average time for each round number, round 1 to the last.</p>${b.svg}<p class="ans">${b.ans}</p></div>
+    <div class="card"><h2>Where most of us land</h2><p class="q">How many students had each average time.</p>${c.svg}<p class="ans">${c.ans}</p></div>
+    <div class="card"><h2>Awards</h2><p class="q">Steadiest = smallest gap between your fastest and slowest round.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div><b>Steadiest players</b><div class="podium" style="margin-top:6px">${steady.map((s, i) => `<div>${medal[i]} ${esc(s.nick)}<b>${r0(s.range)} ms gap</b></div>`).join("")}</div></div>
+        <div><b>Fastest averages</b><div class="podium" style="margin-top:6px">${quick.map((s, i) => `<div>${medal[i]} ${esc(s.nick)}<b>${r0(s.avg)} ms</b></div>`).join("")}</div></div>
+      </div></div>
+    <div class="card"><h2>Us vs a typical human</h2><p class="q">A typical human reacts to a light in roughly ${HUMAN} ms.</p>${h.svg}<p class="ans">${h.ans}</p></div>
+    <div class="card"><h2>Spot the outliers</h2><p class="q">Rounds much slower than that student's usual time. Blinked? Looked away?</p>
+      ${outl.length ? `<table><tr><th>Student</th><th>Round</th><th>Used</th><th>Time</th></tr>${outl.map(o => `<tr><td>${esc(o.nick)}</td><td>${o.round}</td><td><span class="pill ${o.used}">${o.used}</span></td><td><b>${o.ms} ms</b></td></tr>`).join("")}</table>`
+                    : `<p class="ans">No outliers. Everyone was steady!</p>`}</div>
+    <div class="card wide"><h2>Everyone's results</h2><p class="q">Was your guess right? Is your answer the same as the class answer?</p>
+      <table><tr><th>Student</th><th>Average Space</th><th>Average Click</th><th>Faster with</th><th>Guessed</th><th>Best</th><th>Gap (steadiness)</th></tr>
+      ${[...S].sort((x, y) => x.avg - y.avg).map(s => `<tr><td><b>${esc(s.nick)}</b></td><td>${r0(s.aS)} ms</td><td>${r0(s.aC)} ms</td>
+        <td><span class="pill ${s.faster}">${s.faster === "Same" ? "Same" : s.faster}</span></td>
+        <td>${s.guess ? `<span class="pill ${s.guess}">${s.guess}</span> ${s.guess === s.faster ? "✓" : ""}` : "–"}</td>
+        <td>${s.best} ms</td><td>${r0(s.range)} ms</td></tr>`).join("")}</table></div>`;
+}
+
+/* ---------- loading ---------- */
+let timer = 0;
+async function load() {
+  const batch = $("batch").value.trim().toUpperCase();
+  clearTimeout(timer);
+  if (params.get("demo") === "1") {
+    window.__demo = window.__demo || demoData();
+    window.__demoCh = window.__demoCh || demoChallenges(window.__demo);
+    render(window.__demo, "Practice data (not real students)", params.get("challenge") === "0" ? [] : window.__demoCh); return;
+  }
+  if (!batch) return;
+  if (!SCRIPT_URL) { $("grid").innerHTML = `<div class="card wide empty">The data link isn't set up yet (SCRIPT_URL is empty). Try <b>class.html?demo=1</b> to see practice data.</div>`; return; }
+  try {
+    const res = await fetch(SCRIPT_URL + "?batch=" + encodeURIComponent(batch));
+    const out = await res.json();
+    if (!out.ok) throw new Error(out.error || "error");
+    render(out.students || [], `Batch ${batch} · updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`, out.challenges);
+  } catch (e) {
+    $("meta").textContent = "Couldn't load data (" + e.message + "). Trying again…";
+  }
+  timer = setTimeout(load, 10000);
+}
+$("load").onclick = load;
+$("batch").addEventListener("keydown", e => { if (e.key === "Enter") load(); });
+if ($("batch").value || params.get("demo") === "1") load();
 </script>
 </body>
 </html>
